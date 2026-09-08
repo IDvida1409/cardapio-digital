@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Protótipo do módulo de cardápio digital hospitalar.">
+    <title>NutriMenu | Cardápio Digital</title>
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegação principal">
+        <a class="brand" href="#cardapio" aria-label="NutriMenu">
+          <span class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M26.8 3.4C16 4.6 7.6 10.6 5.2 19.4c-1.6 5.7 2.1 9.5 6.8 8.5 9-1.8 14.5-12.7 14.8-24.5Z"></path>
+              <path d="M9.3 24.1c4.6-4.7 8.2-8.9 12.7-15.2"></path>
+            </svg>
+          </span>
+          <span>
+            <strong>NutriMenu</strong>
+            <small>Alimentação com propósito</small>
+          </span>
+        </a>
+
+        <nav class="nav-menu">
+          <a href="#inicio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M10 20v-5h4v5"></path></svg>
+            Início
+          </a>
+          <a class="active" href="#cardapio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v18"></path><path d="M11 3v7a4 4 0 0 1-8 0V3"></path><path d="M17 3v18"></path><path d="M17 3c2.4 1.4 3.8 4 3.8 7.5 0 3.4-1.4 5.8-3.8 7"></path></svg>
+            Cardápio
+          </a>
+          <a href="#alimentos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12c0-4.5 3-8 7-8s7 3.5 7 8-3 8-7 8-7-3.5-7-8Z"></path><path d="M9 13.2c1.6 1.3 4.4 1.3 6 0"></path><path d="M8 9h.1"></path><path d="M16 9h.1"></path></svg>
+            Alimentos
+          </a>
+          <a href="#pratos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0Z"></path><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>
+            Pratos
+          </a>
+          <a href="#categorias">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h7l2 2H20v11H4Z"></path></svg>
+            Categorias
+          </a>
+          <a href="#importar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m8 7 4-4 4 4"></path><path d="M5 15v4h14v-4"></path></svg>
+            Importar Excel
+          </a>
+          <a href="#relatorios">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6Z"></path><path d="M14 3v4h4"></path><path d="M9 14h6"></path><path d="M9 17h4"></path></svg>
+            Relatórios
+          </a>
+          <a href="#configuracoes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"></path><path d="M4 12h2"></path><path d="M18 12h2"></path><path d="m6.4 6.4 1.4 1.4"></path><path d="m16.2 16.2 1.4 1.4"></path><path d="m17.6 6.4-1.4 1.4"></path><path d="m7.8 16.2-1.4 1.4"></path></svg>
+            Configurações
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="leaf-dot" aria-hidden="true"></span>
+          <p>Comida boa<br>faz histórias.</p>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="app-header" id="inicio">
+          <label class="search-box">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+            <input type="search" placeholder="Buscar pratos, alimentos ou categorias...">
+          </label>
+
+          <div class="header-user">
+            <button class="icon-button" type="button" aria-label="Notificações">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg>
+              <span class="notification-dot" aria-hidden="true"></span>
+            </button>
+            <span class="divider"></span>
+            <span class="avatar" aria-hidden="true"></span>
+            <span>
+              <strong>Olá, Amanda</strong>
+              <small>Nutricionista</small>
+            </span>
+          </div>
+        </header>
+
+        <section class="page-title" id="cardapio">
+          <div>
+            <h1>Cardápio Digital</h1>
+            <p>Visualize o cardápio da semana ou selecione um dia específico.</p>
+          </div>
+          <div class="title-actions">
+            <button class="new-menu-button" type="button">Novo Cardápio</button>
+            <label class="import-button">
+              <input id="excelInput" type="file" accept=".xlsx,.xls">
+              Importar Excel
+            </label>
+          </div>
+        </section>
+
+        <section class="week-toolbar" aria-label="Controles do cardápio">
+          <div class="date-controls">
+            <button type="button" aria-label="Semana anterior">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <button class="date-picker" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4"></path><path d="M17 3v4"></path><path d="M4 9h16"></path><path d="M5 5h14v15H5Z"></path></svg>
+              21 de abril a 27 de abril de 2025
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+            <button type="button" aria-label="Próxima semana">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
+          </div>
+
+          <div class="view-switch" role="group" aria-label="Modo de visualização">
+            <button class="active" type="button">Semana</button>
+            <button type="button">Dia</button>
+            <button type="button">Lista</button>
+          </div>
+        </section>
+
+        <section class="menu-card">
+          <div class="week-tabs" role="tablist" aria-label="Dias da semana">
+            <button class="active" type="button"><strong>Segunda</strong><span>21/04</span></button>
+            <button type="button"><strong>Terça</strong><span>22/04</span></button>
+            <button type="button"><strong>Quarta</strong><span>23/04</span></button>
+            <button type="button"><strong>Quinta</strong><span>24/04</span></button>
+            <button type="button"><strong>Sexta</strong><span>25/04</span></button>
+            <button type="button"><strong>Sábado</strong><span>26/04</span></button>
+            <button type="button"><strong>Domingo</strong><span>27/04</span></button>
+          </div>
+
+          <div class="day-content">
+            <div class="day-heading">
+              <div>
+                <h2>Segunda-feira, 21 de abril de 2025</h2>
+                <p>Refeições do dia</p>
+              </div>
+              <span class="validation-pill">Aguardando Excel</span>
+            </div>
+
+            <div class="meal-grid">
+              <article class="meal-card breakfast">
+                <div class="meal-head">
+                  <span class="meal-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3"></path><path d="M12 19v3"></path><path d="M4.9 4.9 7 7"></path><path d="m17 17 2.1 2.1"></path><path d="M2 12h3"></path><path d="M19 12h3"></path><path d="m4.9 19.1 2.1-2.1"></path><path d="m17 7 2.1-2.1"></path></svg>
+                  </span>
+                  <div>
+                    <h3>Café da Manhã</h3>
+                    <p>07:00 - 09:00</p>
+                  </div>
+                </div>
+                <img src="https://www.luther-lawfirm.com/fileadmin/user_upload/Vorschaubild_Breakfast_Briefing_Feb_2025.jpg" alt="Café da manhã com banana, aveia e café">
+                <ul>
+                  <li>Pão integral</li>
+                  <li>Ovos mexidos</li>
+                  <li>Fruta da estação</li>
+                  <li>Café sem açúcar</li>
+                  <li>Aveia</li>
+                </ul>
+              </article>
+
+              <article class="meal-card lunch">
+                <div class="meal-head">
+                  <span class="meal-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 3v18"></path><path d="M11 3v7a4 4 0 0 1-8 0V3"></path><path d="M17 3v18"></path><path d="M17 3c2.5 1.4 4 4.1 4 7.5 0 3.5-1.5 6.2-4 7.5"></path></svg>
+                  </span>
+                  <div>
+                    <h3>Almoço</h3>
+                    <p>11:00 - 14:00</p>
+                  </div>
+                </div>
+                <img src="https://static.itdg.com.br/images/1200-630/e4ad74ff3dffcd92af6f2d422af5098f/shutterstock-128214197-1-.jpg" alt="Prato com arroz, feijão, salada e frango">
+                <details class="suggestion" open>
+                  <summary>Sugestão 1</summary>
+                  <ul>
+                    <li>Arroz integral</li>
+                    <li>Feijão carioca</li>
+                    <li>Frango grelhado</li>
+                    <li>Salada de alface e tomate</li>
+                    <li>Cenoura ralada</li>
+                    <li>Suco natural</li>
+                  </ul>
+                </details>
+                <details class="suggestion">
+                  <summary>Dietas e substituições</summary>
+                  <ul>
+                    <li>Hipossódica: frango sem sal adicionado</li>
+                    <li>Pastosa: creme de frango com legumes</li>
+                    <li>Sem lactose: sobremesa de fruta</li>
+                  </ul>
+                </details>
+              </article>
+
+              <article class="meal-card snack">
+                <div class="meal-head">
+                  <span class="meal-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M5 8h14v4a7 7 0 0 1-14 0Z"></path><path d="M19 9h1a2 2 0 0 1 0 4h-1"></path><path d="M7 4c0 1 .6 1.4.6 2.3"></path><path d="M12 4c0 1 .6 1.4.6 2.3"></path></svg>
+                  </span>
+                  <div>
+                    <h3>Lanche da Tarde</h3>
+                    <p>15:00 - 16:30</p>
+                  </div>
+                </div>
+                <img src="https://img.24sata.hr/6lpUOkRv4Yo44IguYaX4T1T9kHU%3D/1200x800/smart/media/images/2023-34/shutterstock-736653688.jpg" alt="Vitamina de frutas com castanhas">
+                <ul>
+                  <li>Iogurte natural</li>
+                  <li>Fruta da estação</li>
+                  <li>Mix de castanhas</li>
+                </ul>
+              </article>
+
+              <article class="meal-card dinner wide">
+                <div class="meal-head">
+                  <span class="meal-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.5 6.5 0 0 0 10.2 10.2Z"></path></svg>
+                  </span>
+                  <div>
+                    <h3>Jantar</h3>
+                    <p>18:00 - 20:00</p>
+                  </div>
+                </div>
+                <div class="horizontal-meal">
+                  <img src="https://www.vita-plus.be/sites/default/files/2023-08/banner_0.png" alt="Sopa com pão integral">
+                  <div>
+                    <details class="suggestion" open>
+                      <summary>Sugestão 1</summary>
+                      <ul>
+                        <li>Sopa de legumes</li>
+                        <li>Pão integral</li>
+                        <li>Queijo branco</li>
+                        <li>Chá de camomila</li>
+                      </ul>
+                    </details>
+                    <details class="suggestion">
+                      <summary>Processos vinculados</summary>
+                      <ul>
+                        <li>Caldo base de legumes</li>
+                        <li>Legumes cozidos e processados</li>
+                      </ul>
+                    </details>
+                  </div>
+                </div>
+              </article>
+
+              <article class="meal-card supper wide">
+                <div class="meal-head">
+                  <span class="meal-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.5 6.5 0 0 0 10.2 10.2Z"></path><path d="M16 7h.1"></path></svg>
+                  </span>
+                  <div>
+                    <h3>Ceia</h3>
+                    <p>21:00 - 22:00</p>
+                  </div>
+                </div>
+                <div class="horizontal-meal">
+                  <div class="milk-image" role="img" aria-label="Leite e banana"></div>
+                  <ul>
+                    <li>Leite desnatado</li>
+                    <li>Banana</li>
+                  </ul>
+                </div>
+              </article>
+            </div>
+
+            <footer class="message-strip">
+              <span class="leaf-dot" aria-hidden="true"></span>
+              <strong>Alimentação equilibrada, mais saúde para o seu dia.</strong>
+              <p>“Cuidar da alimentação é cuidar do futuro.”</p>
+            </footer>
+          </div>
+        </section>
+
+        <section class="category-section" id="categorias">
+          <div class="category-heading">
+            <div>
+              <h2>Categorias da base</h2>
+              <p>Começamos por aqui. Depois o Excel vai alimentar alimentos, pratos, processos e dietas.</p>
+            </div>
+            <form id="categoryForm" class="category-form">
+              <input id="categoryName" type="text" placeholder="Nova categoria">
+              <select id="categoryGroup" aria-label="Grupo da categoria">
+                <option>Alimentos</option>
+                <option>Dietas</option>
+                <option>Pratos</option>
+                <option>Processos</option>
+              </select>
+              <button type="submit">Adicionar</button>
+            </form>
+          </div>
+
+          <div id="categoryGrid" class="category-grid" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
