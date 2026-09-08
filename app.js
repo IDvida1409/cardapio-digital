@@ -1,7 +1,23 @@
 const categoryStorageKey = "nutrimenu-categorias-empty-v4";
 const legacyCategoryStorageKey = "nutrimenu-categorias";
-const baseStorageKey = "nutrimenu-base-mestre-auto-v4";
+const baseStorageKey = "nutrimenu-base-mestre-auto-v5";
 const legacyBaseStorageKey = "nutrimenu-base-mestre";
+const legacyBaseStorageKeys = [
+  legacyBaseStorageKey,
+  "nutrimenu-base-mestre-structured-v2",
+  "nutrimenu-base-mestre-auto-v3",
+  "nutrimenu-base-mestre-auto-v4",
+  "nutrimenu-base-mestre-guided-v1",
+  "nutrimenu-import-profile-guided-v1"
+];
+
+legacyBaseStorageKeys.forEach((key) => {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // O navegador pode bloquear o armazenamento; a importação continua sem ele.
+  }
+});
 
 const initialCategories = [
   ["Legumes", "Alimentos", ""],
@@ -154,13 +170,15 @@ const importReview = document.getElementById("importReview");
 const reviewList = document.getElementById("reviewList");
 const dayTabs = document.getElementById("dayTabs");
 const mealSelector = document.getElementById("mealSelector");
+const cardapioNav = document.getElementById("cardapioNav");
 const masterBaseSection = document.getElementById("base-mestre");
 const masterBaseNav = document.getElementById("masterBaseNav");
 const closeMasterBase = document.getElementById("closeMasterBase");
 
 let currentImported = null;
 let selectedDayKey = "";
-let selectedMealKey = "almoco";
+let selectedMealKey = "";
+let mealSelectorExpanded = false;
 
 function emptyBase() {
   return {
@@ -193,7 +211,59 @@ function saveCategories() {
 }
 
 function saveMasterBase() {
-  window.localStorage.setItem(baseStorageKey, JSON.stringify(masterBase));
+  const compactBase = compactMasterBaseForStorage(masterBase);
+  try {
+    window.localStorage.setItem(baseStorageKey, JSON.stringify(compactBase));
+  } catch (error) {
+    console.warn("Base mestre grande demais para o armazenamento local. Salvando versão resumida.", error);
+    try {
+      window.localStorage.setItem(baseStorageKey, JSON.stringify({
+        ...compactBase,
+        cardapios: []
+      }));
+    } catch {
+      window.localStorage.removeItem(baseStorageKey);
+    }
+  }
+}
+
+function compactRecord(record) {
+  return {
+    key: record.key || normalizeText(record.name || record.title),
+    name: record.name || "",
+    title: record.title || "",
+    category: record.category || "",
+    count: record.count || 1,
+    sources: Array.isArray(record.sources) ? record.sources.slice(0, 6) : []
+  };
+}
+
+function compactMenuRecord(record) {
+  return {
+    key: record.key || normalizeText(record.name || record.title),
+    name: record.name || "",
+    title: record.title || "",
+    category: "Cardápios",
+    count: record.count || 1,
+    sheetName: record.sheetName || "",
+    cardNumber: record.cardNumber || "",
+    mealKey: record.mealKey || "",
+    mealTitle: record.mealTitle || "",
+    date: record.date || "",
+    dayName: record.dayName || "",
+    itemCount: record.itemCount || 0,
+    sources: Array.isArray(record.sources) ? record.sources.slice(0, 3) : []
+  };
+}
+
+function compactMasterBaseForStorage(base) {
+  return {
+    alimentos: (base.alimentos || []).map(compactRecord),
+    preparacoes: (base.preparacoes || []).map(compactRecord),
+    processos: (base.processos || []).map(compactRecord),
+    dietas: (base.dietas || []).map(compactRecord),
+    cardapios: (base.cardapios || []).map(compactMenuRecord)
+  };
 }
 
 function normalizeText(value) {
@@ -999,12 +1069,13 @@ function getSelectedDay() {
 }
 
 function getSelectedMealDefinition() {
-  return mealDefinitions.find((meal) => meal.key === selectedMealKey) || mealDefinitions[1];
+  return mealDefinitions.find((meal) => meal.key === selectedMealKey) || null;
 }
 
-function chooseDefaultMealKey(day) {
-  const preferredOrder = ["almoco", "jantar", "cafe"];
-  return preferredOrder.find((mealKey) => (day && day.meals && day.meals[mealKey] || []).length) || "almoco";
+function setMealSelectorExpanded(expanded) {
+  mealSelectorExpanded = Boolean(expanded);
+  if (mealSelector) mealSelector.hidden = !mealSelectorExpanded;
+  if (cardapioNav) cardapioNav.setAttribute("aria-expanded", mealSelectorExpanded ? "true" : "false");
 }
 
 function renderMealSelector(day = null) {
@@ -1033,9 +1104,19 @@ function renderSelectedDay() {
   selectedDayKey = day.key;
   const dateLabel = day.dateText ? `Dia ${day.dateText}` : day.subtitle;
   const selectedMeal = getSelectedMealDefinition();
-  const menus = day.meals[selectedMeal.key] || [];
 
   mealSectionTitle.textContent = `Cardápio de ${day.title}`;
+  if (!selectedMeal) {
+    mealSectionSubtitle.textContent = `${dateLabel} · escolha Café da Manhã, Almoço ou Jantar no menu Cardápio.`;
+    validationPill.textContent = "Escolha refeição";
+    mealGrid.hidden = true;
+    mealGrid.innerHTML = "";
+    renderMealSelector(day);
+    renderDayTabs(currentImported);
+    return;
+  }
+
+  const menus = day.meals[selectedMeal.key] || [];
   mealSectionSubtitle.textContent = `${dateLabel} · ${selectedMeal.title}`;
   validationPill.textContent = menus.length ? plural(menus.length, "cardápio", "cardápios") : "Sem dados";
   mealGrid.hidden = false;
@@ -1233,7 +1314,8 @@ function renderReview(imported, created) {
 function renderImportedState(imported, created) {
   currentImported = imported;
   selectedDayKey = (imported.days.find((day) => day.dateText && day.dateText.startsWith("24/")) || imported.days.find((day) => day.dateText) || imported.days[0] || {}).key || "";
-  selectedMealKey = chooseDefaultMealKey(getSelectedDay());
+  selectedMealKey = "";
+  setMealSelectorExpanded(false);
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
   datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
@@ -1249,7 +1331,8 @@ function renderImportedState(imported, created) {
 function renderError(message) {
   currentImported = null;
   selectedDayKey = "";
-  selectedMealKey = "almoco";
+  selectedMealKey = "";
+  setMealSelectorExpanded(false);
   dayTabs.hidden = true;
   dayTabs.innerHTML = "";
   validationPill.textContent = "Importação pendente";
@@ -1267,7 +1350,8 @@ function renderError(message) {
 function renderEmptyImportState() {
   currentImported = null;
   selectedDayKey = "";
-  selectedMealKey = "almoco";
+  selectedMealKey = "";
+  setMealSelectorExpanded(false);
   dayTabs.hidden = true;
   dayTabs.innerHTML = "";
   importReview.hidden = true;
@@ -1315,11 +1399,19 @@ if (mealSelector) {
     const button = event.target.closest("[data-meal-filter]");
     if (!button) return;
     selectedMealKey = button.dataset.mealFilter || "almoco";
+    setMealSelectorExpanded(true);
     if (currentImported) {
       renderSelectedDay();
       return;
     }
     renderMealSelector();
+  });
+}
+
+if (cardapioNav) {
+  cardapioNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    setMealSelectorExpanded(!mealSelectorExpanded);
   });
 }
 
@@ -1353,6 +1445,7 @@ if (clearLocalData) {
       "nutrimenu-categorias-empty-v3",
       "nutrimenu-base-mestre-structured-v2",
       "nutrimenu-base-mestre-auto-v3",
+      "nutrimenu-base-mestre-auto-v4",
       "nutrimenu-base-mestre-guided-v1",
       "nutrimenu-import-profile-guided-v1"
     ].forEach((key) => window.localStorage.removeItem(key));

@@ -143,6 +143,23 @@ svg {
   border-left: 1px solid rgba(255, 255, 255, 0.14);
 }
 
+.meal-subnav[hidden] {
+  display: none;
+}
+
+.has-subnav::after {
+  content: "+";
+  margin-left: auto;
+  color: #b8f4cd;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.has-subnav[aria-expanded="true"]::after {
+  content: "-";
+}
+
 .meal-subnav:empty {
   display: none;
 }
