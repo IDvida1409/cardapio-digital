@@ -39,9 +39,9 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0Z"></path><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>
             Pratos
           </a>
-          <a href="#categorias">
+          <a href="#base-mestre" id="masterBaseNav">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h7l2 2H20v11H4Z"></path></svg>
-            Categorias
+            Base mestre
           </a>
           <a href="#importar">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m8 7 4-4 4 4"></path><path d="M5 15v4h14v-4"></path></svg>
@@ -56,6 +56,11 @@
             Configurações
           </a>
         </nav>
+
+        <div class="side-panel" aria-label="Selecionar refeição">
+          <span>Refeição</span>
+          <div class="side-meal-list" id="mealSelector"></div>
+        </div>
       </aside>
 
       <main class="main-area">
@@ -194,12 +199,13 @@
           </div>
         </section>
 
-        <section class="category-section" id="categorias">
+        <section class="category-section" id="base-mestre" hidden>
           <div class="category-heading">
             <div>
               <h2>Base mestre</h2>
-              <p>Categorias iniciais e registros criados a partir do Excel.</p>
+              <p>Cadastros separados para reaproveitar alimentos, preparações, processos e dietas.</p>
             </div>
+            <button class="clear-local-button slim" id="closeMasterBase" type="button">Fechar base</button>
             <form id="categoryForm" class="category-form">
               <input id="categoryName" type="text" placeholder="Nova categoria">
               <select id="categoryGroup" aria-label="Grupo da categoria">

@@ -146,7 +146,7 @@
       processos: new Map(),
       dietas: new Map(),
       warnings: [],
-      parserVersion: "structured-v3"
+      parserVersion: "structured-v4"
     };
   }
 
@@ -400,11 +400,14 @@
 
   function addCanonicalFoodMatches(text, foodMap, source) {
     const normalized = core.normalizeText(text);
+    let matched = false;
     canonicalFoodRules.forEach(([name, category, terms]) => {
       if (terms.some((term) => normalized.includes(term))) {
         core.addRecord(foodMap, name, { category, source });
+        matched = true;
       }
     });
+    return matched;
   }
 
   function addSectionItem(sectionMap, category, item) {
@@ -477,8 +480,8 @@
       if (component.category === "Processos") {
         core.addRecord(imported.processos, component.name, { category: "Processos", source });
       }
-      addCanonicalFoodMatches(component.name, imported.alimentos, source);
-      if (isLikelyAtomicFood(component)) {
+      const hasCanonicalFood = addCanonicalFoodMatches(component.name, imported.alimentos, source);
+      if (!hasCanonicalFood && isLikelyAtomicFood(component)) {
         core.addRecord(imported.alimentos, component.name, { category: component.category, source });
       }
     });

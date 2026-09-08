@@ -1,6 +1,6 @@
-const categoryStorageKey = "nutrimenu-categorias-empty-v3";
+const categoryStorageKey = "nutrimenu-categorias-empty-v4";
 const legacyCategoryStorageKey = "nutrimenu-categorias";
-const baseStorageKey = "nutrimenu-base-mestre-auto-v3";
+const baseStorageKey = "nutrimenu-base-mestre-auto-v4";
 const legacyBaseStorageKey = "nutrimenu-base-mestre";
 
 const initialCategories = [
@@ -153,9 +153,14 @@ const masterSummary = document.getElementById("masterSummary");
 const importReview = document.getElementById("importReview");
 const reviewList = document.getElementById("reviewList");
 const dayTabs = document.getElementById("dayTabs");
+const mealSelector = document.getElementById("mealSelector");
+const masterBaseSection = document.getElementById("base-mestre");
+const masterBaseNav = document.getElementById("masterBaseNav");
+const closeMasterBase = document.getElementById("closeMasterBase");
 
 let currentImported = null;
 let selectedDayKey = "";
+let selectedMealKey = "almoco";
 
 function emptyBase() {
   return {
@@ -276,25 +281,31 @@ function renderCategories() {
     return;
   }
 
-  const grouped = new Map(categories.map(([name, group, examples]) => [
-    normalizeText(name),
-    { name, group, examples, items: [] }
-  ]));
+  const grouped = new Map();
 
-  [
-    ["alimentos", "Alimentos"],
-    ["preparacoes", "Preparações"],
-    ["processos", "Processos"],
-    ["dietas", "Dietas"]
-  ].forEach(([collection, fallbackGroup]) => {
-    masterBase[collection].forEach((record) => {
-      const name = record.category || fallbackGroup;
-      const key = normalizeText(name);
-      const current = grouped.get(key) || { name, group: fallbackGroup, examples: "", items: [] };
-      current.items.push(record.name || record.title || record.key);
-      grouped.set(key, current);
+  function addMasterGroup(name, group, items) {
+    const key = normalizeText(name);
+    const current = grouped.get(key) || { name, group, examples: "", items: [] };
+    items.forEach((item) => {
+      const text = item && (item.name || item.title || item.key || item);
+      if (!text) return;
+      const itemKey = normalizeText(text);
+      if (!itemKey || current.items.some((currentItem) => normalizeText(currentItem) === itemKey)) return;
+      current.items.push(text);
     });
+    grouped.set(key, current);
+  }
+
+  categories.forEach(([name, group, examples]) => {
+    const matchingFoods = (masterBase.alimentos || []).filter((record) => normalizeText(record.category || "") === normalizeText(name));
+    if (matchingFoods.length || examples) {
+      addMasterGroup(name, group, matchingFoods.length ? matchingFoods : String(examples).split(",").map((item) => item.trim()).filter(Boolean));
+    }
   });
+
+  addMasterGroup("Preparações", "Pratos", masterBase.preparacoes || []);
+  addMasterGroup("Processos", "Processos", masterBase.processos || []);
+  addMasterGroup("Dietas especiais", "Dietas", masterBase.dietas || []);
 
   Array.from(grouped.values())
     .filter((group) => group.items.length || group.examples)
@@ -982,17 +993,51 @@ function renderDayTabs(imported) {
   if (activeDay) activeDay.scrollIntoView({ block: "nearest", inline: "start" });
 }
 
+function getSelectedDay() {
+  if (!currentImported || !currentImported.days.length) return null;
+  return currentImported.days.find((item) => item.key === selectedDayKey) || currentImported.days[0];
+}
+
+function getSelectedMealDefinition() {
+  return mealDefinitions.find((meal) => meal.key === selectedMealKey) || mealDefinitions[1];
+}
+
+function chooseDefaultMealKey(day) {
+  const preferredOrder = ["almoco", "jantar", "cafe"];
+  return preferredOrder.find((mealKey) => (day && day.meals && day.meals[mealKey] || []).length) || "almoco";
+}
+
+function renderMealSelector(day = null) {
+  if (!mealSelector) return;
+
+  mealSelector.innerHTML = mealDefinitions.map((meal) => {
+    const menus = day && day.meals ? day.meals[meal.key] || [] : [];
+    const itemCount = menus.reduce((total, menu) => total + (menu.itemCount || 0), 0);
+    const meta = menus.length ? `${plural(menus.length, "cardápio", "cardápios")} · ${plural(itemCount, "item", "itens")}` : "Sem dados";
+
+    return `
+      <button class="side-meal ${meal.key === selectedMealKey ? "active" : ""}" type="button" data-meal-filter="${meal.key}" data-empty="${menus.length ? "false" : "true"}">
+        <span>${escapeHtml(meal.title)}</span>
+        <small>${escapeHtml(meta)}</small>
+      </button>
+    `;
+  }).join("");
+}
+
 function renderSelectedDay() {
   if (!currentImported || !currentImported.days.length) return;
-  const day = currentImported.days.find((item) => item.key === selectedDayKey) || currentImported.days[0];
+  const day = getSelectedDay();
   selectedDayKey = day.key;
   const dateLabel = day.dateText ? `Dia ${day.dateText}` : day.subtitle;
+  const selectedMeal = getSelectedMealDefinition();
+  const menus = day.meals[selectedMeal.key] || [];
 
   mealSectionTitle.textContent = `Cardápio de ${day.title}`;
-  mealSectionSubtitle.textContent = `${dateLabel} · ${plural(day.mealCount, "refeição importada", "refeições importadas")}`;
-  validationPill.textContent = plural(day.mealCount, "refeição", "refeições");
-  mealGrid.className = "meal-grid day-board";
-  mealGrid.innerHTML = mealDefinitions.map((meal) => renderDayMealCard(meal, day.meals[meal.key] || [])).join("");
+  mealSectionSubtitle.textContent = `${dateLabel} · ${selectedMeal.title}`;
+  validationPill.textContent = menus.length ? plural(menus.length, "cardápio", "cardápios") : "Sem dados";
+  mealGrid.className = "meal-grid day-board meal-focus";
+  mealGrid.innerHTML = renderDayMealCard(selectedMeal, menus);
+  renderMealSelector(day);
   renderDayTabs(currentImported);
 }
 
@@ -1002,7 +1047,7 @@ function renderDayMealCard(meal, menus) {
 
   if (!menus.length) {
     return `
-      <article class="meal-card ${mealClass}">
+      <article class="meal-card ${mealClass} selected-meal-card">
         <div class="meal-head">
           ${renderMealIcon(meal.key)}
           <div>
@@ -1017,7 +1062,7 @@ function renderDayMealCard(meal, menus) {
   }
 
   return `
-    <article class="meal-card ${mealClass} imported day-meal-card">
+    <article class="meal-card ${mealClass} imported day-meal-card selected-meal-card">
       <div class="meal-head">
         ${renderMealIcon(meal.key)}
         <div>
@@ -1104,20 +1149,24 @@ function renderDietGroup(group, open) {
 
 function renderSuggestionCard(suggestion) {
   const dishes = Array.isArray(suggestion.dishes) ? suggestion.dishes : [];
+  const fallbackItems = flattenSuggestionItems(suggestion);
+  const countLabel = suggestion.itemCount
+    ? plural(suggestion.itemCount, "componente", "componentes")
+    : plural(dishes.length || fallbackItems.length, "preparação", "preparações");
 
   return `
     <article class="suggestion-card">
       <header class="suggestion-card-header">
         <strong>${escapeHtml(suggestion.title)}</strong>
-        <span>${plural(suggestion.itemCount, "item", "itens")}</span>
+        <span>${escapeHtml(countLabel)}</span>
       </header>
       ${dishes.length ? `
-        <div class="dish-stack">
+        <div class="dish-stack simple-dish-stack">
           ${dishes.map(renderDishCard).join("")}
         </div>
       ` : `
-        <div class="category-stack">
-          ${suggestion.sections.map(renderSectionPreview).join("")}
+        <div class="dish-stack simple-dish-stack">
+          ${fallbackItems.map((item) => `<section class="dish-card dish-line"><strong>${escapeHtml(item)}</strong></section>`).join("")}
         </div>
       `}
     </article>
@@ -1125,18 +1174,20 @@ function renderSuggestionCard(suggestion) {
 }
 
 function renderDishCard(dish) {
-  const sections = Array.isArray(dish.sections) && dish.sections.length
-    ? dish.sections
-    : buildSectionsFromComponents(dish.components || []);
+  const componentCount = Array.isArray(dish.components) ? dish.components.length : 0;
 
   return `
-    <section class="dish-card">
+    <section class="dish-card dish-line">
       <strong>${escapeHtml(dish.name)}</strong>
-      <div class="dish-components">
-        ${sections.map(renderSectionPreview).join("")}
-      </div>
+      ${componentCount > 1 ? `<small>${plural(componentCount, "componente", "componentes")}</small>` : ""}
     </section>
   `;
+}
+
+function flattenSuggestionItems(suggestion) {
+  return (suggestion.sections || [])
+    .flatMap((section) => section.items || [])
+    .filter(Boolean);
 }
 
 function buildSectionsFromComponents(components) {
@@ -1178,6 +1229,7 @@ function renderReview(imported, created) {
 function renderImportedState(imported, created) {
   currentImported = imported;
   selectedDayKey = (imported.days.find((day) => day.dateText && day.dateText.startsWith("24/")) || imported.days.find((day) => day.dateText) || imported.days[0] || {}).key || "";
+  selectedMealKey = chooseDefaultMealKey(getSelectedDay());
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
   datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
@@ -1193,17 +1245,25 @@ function renderImportedState(imported, created) {
 function renderError(message) {
   currentImported = null;
   selectedDayKey = "";
+  selectedMealKey = "almoco";
   dayTabs.hidden = true;
   dayTabs.innerHTML = "";
   validationPill.textContent = "Importação pendente";
+  validationPill.classList.remove("selected-file");
   summaryLabel.textContent = "Revisão necessária";
   summaryTitle.textContent = "Excel não interpretado";
   summaryText.textContent = message;
+  mealSectionTitle.textContent = "Cardápio";
+  mealSectionSubtitle.textContent = "Sem dados importados";
+  mealGrid.className = "meal-grid day-board meal-focus";
+  mealGrid.innerHTML = renderDayMealCard(getSelectedMealDefinition(), []);
+  renderMealSelector();
 }
 
 function renderEmptyImportState() {
   currentImported = null;
   selectedDayKey = "";
+  selectedMealKey = "almoco";
   dayTabs.hidden = true;
   dayTabs.innerHTML = "";
   importReview.hidden = true;
@@ -1214,10 +1274,11 @@ function renderEmptyImportState() {
   summaryLabel.textContent = "Cardápio";
   summaryTitle.textContent = "Aguardando importação";
   summaryText.textContent = "Depois do Excel, esta área será preenchida com semanas, dias, sugestões e dietas.";
-  mealSectionTitle.textContent = "Refeições principais";
+  mealSectionTitle.textContent = "Cardápio";
   mealSectionSubtitle.textContent = "Sem dados importados";
-  mealGrid.className = "meal-grid";
-  mealGrid.innerHTML = mealDefinitions.map((meal) => renderDayMealCard(meal, [])).join("");
+  mealGrid.className = "meal-grid day-board meal-focus";
+  mealGrid.innerHTML = renderDayMealCard(getSelectedMealDefinition(), []);
+  renderMealSelector();
   renderMasterSummary();
   renderCategories();
 }
@@ -1245,6 +1306,38 @@ dayTabs.addEventListener("click", (event) => {
   renderSelectedDay();
 });
 
+if (mealSelector) {
+  mealSelector.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-meal-filter]");
+    if (!button) return;
+    selectedMealKey = button.dataset.mealFilter || "almoco";
+    if (currentImported) {
+      renderSelectedDay();
+      return;
+    }
+    mealGrid.innerHTML = renderDayMealCard(getSelectedMealDefinition(), []);
+    renderMealSelector();
+  });
+}
+
+function setMasterBaseVisible(visible) {
+  if (!masterBaseSection) return;
+  masterBaseSection.hidden = !visible;
+  if (masterBaseNav) masterBaseNav.classList.toggle("active", visible);
+  if (visible) masterBaseSection.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+if (masterBaseNav) {
+  masterBaseNav.addEventListener("click", (event) => {
+    event.preventDefault();
+    setMasterBaseVisible(!masterBaseSection || masterBaseSection.hidden);
+  });
+}
+
+if (closeMasterBase) {
+  closeMasterBase.addEventListener("click", () => setMasterBaseVisible(false));
+}
+
 if (clearLocalData) {
   clearLocalData.addEventListener("click", () => {
     window.localStorage.removeItem(categoryStorageKey);
@@ -1254,13 +1347,16 @@ if (clearLocalData) {
     [
       "nutrimenu-categorias-empty-v1",
       "nutrimenu-categorias-empty-v2",
+      "nutrimenu-categorias-empty-v3",
       "nutrimenu-base-mestre-structured-v2",
+      "nutrimenu-base-mestre-auto-v3",
       "nutrimenu-base-mestre-guided-v1",
       "nutrimenu-import-profile-guided-v1"
     ].forEach((key) => window.localStorage.removeItem(key));
     categories = copyValue(initialCategories);
     masterBase = emptyBase();
     if (excelInput) excelInput.value = "";
+    setMasterBaseVisible(false);
     renderEmptyImportState();
   });
 }
@@ -1291,5 +1387,4 @@ excelInput.addEventListener("change", async () => {
   }
 });
 
-renderCategories();
-renderMasterSummary();
+renderEmptyImportState();

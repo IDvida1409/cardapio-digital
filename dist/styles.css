@@ -103,7 +103,7 @@ svg {
 .brand strong {
   display: block;
   font-size: 1.38rem;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .nav-menu {
@@ -133,6 +133,57 @@ svg {
   width: 21px;
   height: 21px;
   flex: 0 0 auto;
+}
+
+.side-panel {
+  margin-top: 22px;
+  padding: 18px 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.side-panel > span {
+  display: block;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.side-meal-list {
+  display: grid;
+  gap: 8px;
+}
+
+.side-meal {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.84);
+  text-align: left;
+}
+
+.side-meal:hover,
+.side-meal.active {
+  background: linear-gradient(90deg, rgba(44, 176, 124, 0.38), rgba(44, 176, 124, 0.12));
+  box-shadow: inset 4px 0 0 #b8f4cd;
+  color: #ffffff;
+}
+
+.side-meal span {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.side-meal small {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
 .main-area {
@@ -251,9 +302,9 @@ svg {
 
 .page-title h1 {
   margin: 0;
-  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
+  font-size: 2.35rem;
   line-height: 1.08;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .page-title p {
@@ -292,6 +343,11 @@ svg {
 .clear-local-button:hover {
   color: var(--green-800);
   border-color: rgba(9, 129, 95, 0.28);
+}
+
+.clear-local-button.slim {
+  min-height: 38px;
+  padding: 0 13px;
 }
 
 .import-button {
@@ -390,7 +446,7 @@ svg {
   color: var(--green-800);
   font-size: 0.76rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -421,8 +477,8 @@ svg {
 
 .day-heading h2 {
   margin: 0;
-  font-size: clamp(1.22rem, 2vw, 1.55rem);
-  letter-spacing: -0.01em;
+  font-size: 1.45rem;
+  letter-spacing: 0;
 }
 
 .day-heading p {
@@ -497,7 +553,11 @@ svg {
 
 .meal-grid.day-board {
   align-items: start;
-  grid-template-columns: minmax(210px, 0.72fr) repeat(2, minmax(320px, 1.2fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.meal-focus {
+  max-width: 100%;
 }
 
 .meal-card {
@@ -517,6 +577,10 @@ svg {
 
 .day-meal-card {
   min-height: 0;
+}
+
+.selected-meal-card {
+  width: 100%;
 }
 
 .meal-head {
@@ -687,6 +751,7 @@ svg {
 
 .suggestion-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
   padding: 0 12px 12px;
 }
@@ -732,6 +797,11 @@ svg {
   gap: 10px;
 }
 
+.simple-dish-stack {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  align-items: start;
+}
+
 .dish-card {
   display: grid;
   gap: 10px;
@@ -745,6 +815,17 @@ svg {
   color: #111827;
   font-size: 0.94rem;
   line-height: 1.35;
+}
+
+.dish-line {
+  align-content: start;
+  min-height: 82px;
+}
+
+.dish-line small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .category-list {
@@ -872,7 +953,7 @@ svg {
 .category-heading h2 {
   margin: 0;
   font-size: 1.38rem;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .category-heading p {
@@ -1069,6 +1150,16 @@ svg {
     overflow-x: auto;
   }
 
+  .side-panel {
+    margin-top: 14px;
+    padding: 14px 0 0;
+  }
+
+  .side-meal-list {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    overflow-x: auto;
+  }
+
   .main-area {
     padding: 0 18px 28px;
   }
@@ -1106,6 +1197,10 @@ svg {
     padding-top: 28px;
   }
 
+  .page-title h1 {
+    font-size: 1.9rem;
+  }
+
   .title-actions > *,
   .date-controls > *,
   .view-switch,
@@ -1134,6 +1229,8 @@ svg {
 
   .meal-grid,
   .meal-grid.day-board,
+  .suggestion-grid,
+  .simple-dish-stack,
   .category-grid,
   .master-summary {
     grid-template-columns: 1fr;
