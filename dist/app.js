@@ -235,6 +235,22 @@ function cellToText(value) {
   return String(value);
 }
 
+function renderCategoryItems(items, fallbackText) {
+  const values = items.length
+    ? items.slice(0, 8)
+    : String(fallbackText || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const hiddenCount = Math.max(0, items.length - values.length);
+
+  if (!values.length) return "";
+
+  return `
+    <div class="category-items">
+      ${values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+    </div>
+    ${hiddenCount ? `<small>+${hiddenCount} outro(s)</small>` : ""}
+  `;
+}
+
 function renderCategories() {
   categoryGrid.innerHTML = "";
 
@@ -245,7 +261,7 @@ function renderCategories() {
       card.className = "category-card";
       card.innerHTML = `
         <strong>${escapeHtml(name)}</strong>
-        <span>${escapeHtml(examples)}</span>
+        ${renderCategoryItems([], examples)}
         <em>${escapeHtml(group)}</em>
       `;
       categoryGrid.appendChild(card);
@@ -280,10 +296,9 @@ function renderCategories() {
     const card = document.createElement("article");
     card.className = "category-card";
     const uniqueItems = Array.from(new Set(group.items)).sort((a, b) => a.localeCompare(b, "pt-BR"));
-    const examples = uniqueItems.length ? uniqueItems.slice(0, 8).join(", ") : group.examples;
     card.innerHTML = `
       <strong>${escapeHtml(group.name)}</strong>
-      <span>${escapeHtml(examples)}</span>
+      ${renderCategoryItems(uniqueItems, group.examples)}
       <em>${uniqueItems.length ? `${uniqueItems.length} item(ns)` : escapeHtml(group.group)}</em>
     `;
     categoryGrid.appendChild(card);
@@ -922,6 +937,13 @@ function mergeCollection(collectionName, records) {
 }
 
 function mergeImportedData(imported) {
+  if (window.NutriMenuPersistence && window.NutriMenuPersistence.mergeImportedData) {
+    const result = window.NutriMenuPersistence.mergeImportedData(masterBase, imported);
+    masterBase = result.masterBase;
+    saveMasterBase();
+    return result.created;
+  }
+
   const created = {
     alimentos: mergeCollection("alimentos", imported.alimentos),
     preparacoes: mergeCollection("preparacoes", imported.preparacoes),
@@ -1047,27 +1069,63 @@ function renderDietGroup(group, open) {
     <details class="diet-block" ${open ? "open" : ""}>
       <summary>
         <span>${escapeHtml(group.title)}</span>
-        <em>${group.suggestions.length} sugestão(ões) · ${itemCount} item(ns)</em>
+        <em>${group.suggestions.length} sugestão(ões) · ${itemCount} componente(s)</em>
       </summary>
       <div class="suggestion-grid">
-        ${group.suggestions.map((suggestion, index) => renderSuggestionCard(suggestion, open && index === 0)).join("")}
+        ${group.suggestions.map((suggestion) => renderSuggestionCard(suggestion)).join("")}
       </div>
     </details>
   `;
 }
 
-function renderSuggestionCard(suggestion, open) {
+function renderSuggestionCard(suggestion) {
+  const dishes = Array.isArray(suggestion.dishes) ? suggestion.dishes : [];
+
   return `
-    <details class="suggestion-card" ${open ? "open" : ""}>
-      <summary>
+    <article class="suggestion-card">
+      <header class="suggestion-card-header">
         <strong>${escapeHtml(suggestion.title)}</strong>
-        <span>${suggestion.itemCount} item(ns)</span>
-      </summary>
-      <div class="category-stack">
-        ${suggestion.sections.map(renderSectionPreview).join("")}
-      </div>
-    </details>
+        <span>${suggestion.itemCount} componente(s)</span>
+      </header>
+      ${dishes.length ? `
+        <div class="dish-stack">
+          ${dishes.map(renderDishCard).join("")}
+        </div>
+      ` : `
+        <div class="category-stack">
+          ${suggestion.sections.map(renderSectionPreview).join("")}
+        </div>
+      `}
+    </article>
   `;
+}
+
+function renderDishCard(dish) {
+  const sections = Array.isArray(dish.sections) && dish.sections.length
+    ? dish.sections
+    : buildSectionsFromComponents(dish.components || []);
+
+  return `
+    <section class="dish-card">
+      <strong>${escapeHtml(dish.name)}</strong>
+      <div class="dish-components">
+        ${sections.map(renderSectionPreview).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function buildSectionsFromComponents(components) {
+  const groups = new Map();
+  components.forEach((component) => {
+    const title = component.category || "Preparações";
+    const current = groups.get(title) || { title, items: [] };
+    if (!current.items.some((item) => normalizeText(item) === normalizeText(component.name))) {
+      current.items.push(component.name);
+    }
+    groups.set(title, current);
+  });
+  return Array.from(groups.values());
 }
 
 function renderSectionPreview(section) {
@@ -1157,7 +1215,10 @@ excelInput.addEventListener("change", async () => {
   summaryText.textContent = "O arquivo está sendo lido no navegador. Nada é enviado para servidor nesta etapa.";
 
   try {
-    const imported = await parseWorkbook(file);
+    const parseExcel = window.NutriMenuImporter && window.NutriMenuImporter.parseWorkbook
+      ? window.NutriMenuImporter.parseWorkbook
+      : parseWorkbook;
+    const imported = await parseExcel(file);
     const created = mergeImportedData(imported);
     renderImportedState(imported, created);
   } catch (error) {

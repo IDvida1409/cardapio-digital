@@ -613,8 +613,7 @@ svg {
   background: #f8fbfa;
 }
 
-.diet-block > summary,
-.suggestion-card > summary {
+.diet-block > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -623,8 +622,7 @@ svg {
   list-style: none;
 }
 
-.diet-block > summary::-webkit-details-marker,
-.suggestion-card > summary::-webkit-details-marker {
+.diet-block > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -655,20 +653,26 @@ svg {
 }
 
 .suggestion-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
   background: #ffffff;
 }
 
-.suggestion-card > summary {
-  min-height: 46px;
-  padding: 10px 12px;
+.suggestion-card-header {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.suggestion-card > summary strong {
+.suggestion-card-header strong {
   color: #15202d;
   font-size: 0.92rem;
 }
 
-.suggestion-card > summary span {
+.suggestion-card-header span {
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 5px 9px;
@@ -681,7 +685,27 @@ svg {
 .category-stack {
   display: grid;
   gap: 10px;
-  padding: 0 12px 12px;
+}
+
+.dish-stack,
+.dish-components {
+  display: grid;
+  gap: 10px;
+}
+
+.dish-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(17, 116, 85, 0.14);
+  border-radius: 10px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbfa);
+}
+
+.dish-card > strong {
+  color: #111827;
+  font-size: 0.94rem;
+  line-height: 1.35;
 }
 
 .category-list {
@@ -908,7 +932,8 @@ svg {
 }
 
 .category-card strong,
-.category-card span {
+.category-card span,
+.category-card small {
   display: block;
 }
 
@@ -921,6 +946,31 @@ svg {
   color: var(--muted);
   font-size: 0.88rem;
   line-height: 1.35;
+}
+
+.category-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.category-items span {
+  margin-top: 0;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #f3f8f6;
+  color: #263443;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.category-card small {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .category-card em {
