@@ -435,10 +435,58 @@ svg {
   color: #285fbc;
 }
 
+.day-strip {
+  display: flex;
+  gap: 10px;
+  margin: -4px 0 18px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.day-tab {
+  min-width: 132px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 13px;
+  background: #ffffff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.day-tab strong,
+.day-tab span {
+  display: block;
+}
+
+.day-tab strong {
+  font-size: 0.9rem;
+}
+
+.day-tab span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.day-tab.active {
+  border-color: rgba(9, 129, 95, 0.35);
+  background: var(--green-50);
+  box-shadow: inset 0 -3px 0 var(--green-700);
+}
+
+.day-tab.active strong {
+  color: var(--green-800);
+}
+
 .meal-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 18px;
+}
+
+.meal-grid.day-board {
+  align-items: start;
+  grid-template-columns: minmax(210px, 0.72fr) repeat(2, minmax(320px, 1.2fr));
 }
 
 .meal-card {
@@ -454,6 +502,10 @@ svg {
 
 .meal-card.imported {
   min-height: 286px;
+}
+
+.day-meal-card {
+  min-height: 0;
 }
 
 .meal-head {
@@ -546,6 +598,128 @@ svg {
   display: grid;
   gap: 10px;
   margin-top: auto;
+}
+
+.day-meal {
+  gap: 12px;
+  margin-top: 0;
+}
+
+.diet-block,
+.suggestion-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fbfa;
+}
+
+.diet-block > summary,
+.suggestion-card > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.diet-block > summary::-webkit-details-marker,
+.suggestion-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.diet-block > summary {
+  min-height: 52px;
+  padding: 12px 14px;
+  color: var(--green-800);
+  font-weight: 800;
+}
+
+.diet-block > summary span {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.diet-block > summary em {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.suggestion-grid {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.suggestion-card {
+  background: #ffffff;
+}
+
+.suggestion-card > summary {
+  min-height: 46px;
+  padding: 10px 12px;
+}
+
+.suggestion-card > summary strong {
+  color: #15202d;
+  font-size: 0.92rem;
+}
+
+.suggestion-card > summary span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--green-50);
+  color: var(--green-800);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.category-stack {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.category-list {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.category-list:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.category-list strong {
+  display: block;
+  color: #283240;
+  font-size: 0.82rem;
+}
+
+.category-list ul {
+  margin: 7px 0 0;
+  padding-left: 18px;
+  color: #202636;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.menu-block-empty {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fbfa;
+}
+
+.menu-block-empty span {
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .recognized-block {
@@ -762,7 +936,8 @@ svg {
 }
 
 @media (max-width: 1180px) {
-  .meal-grid {
+  .meal-grid,
+  .meal-grid.day-board {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
 
@@ -859,6 +1034,7 @@ svg {
   }
 
   .meal-grid,
+  .meal-grid.day-board,
   .category-grid,
   .master-summary {
     grid-template-columns: 1fr;
