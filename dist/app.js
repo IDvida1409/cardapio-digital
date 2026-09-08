@@ -15,16 +15,6 @@ const initialCategories = [
   ["Molhos", "Processos", "Bolonhesa, sugo, branco, madeira"]
 ];
 
-const weekDates = [
-  ["Segunda-feira, 21 de abril de 2025", "Segunda", "21/04"],
-  ["Terça-feira, 22 de abril de 2025", "Terça", "22/04"],
-  ["Quarta-feira, 23 de abril de 2025", "Quarta", "23/04"],
-  ["Quinta-feira, 24 de abril de 2025", "Quinta", "24/04"],
-  ["Sexta-feira, 25 de abril de 2025", "Sexta", "25/04"],
-  ["Sábado, 26 de abril de 2025", "Sábado", "26/04"],
-  ["Domingo, 27 de abril de 2025", "Domingo", "27/04"]
-];
-
 let categories = loadCategories();
 
 const categoryGrid = document.getElementById("categoryGrid");
@@ -32,7 +22,6 @@ const categoryForm = document.getElementById("categoryForm");
 const categoryName = document.getElementById("categoryName");
 const categoryGroup = document.getElementById("categoryGroup");
 const excelInput = document.getElementById("excelInput");
-const dayTitle = document.querySelector(".day-heading h2");
 const validationPill = document.querySelector(".validation-pill");
 
 function loadCategories() {
@@ -88,14 +77,6 @@ categoryForm.addEventListener("submit", (event) => {
   }
 
   categoryName.value = "";
-});
-
-document.querySelectorAll(".week-tabs button").forEach((button, index) => {
-  button.addEventListener("click", () => {
-    document.querySelector(".week-tabs button.active")?.classList.remove("active");
-    button.classList.add("active");
-    dayTitle.textContent = weekDates[index][0];
-  });
 });
 
 excelInput.addEventListener("change", () => {
