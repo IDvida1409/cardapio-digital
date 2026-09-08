@@ -1,20 +1,21 @@
-const categoryStorageKey = "nutrimenu-categorias";
+const categoryStorageKey = "nutrimenu-categorias-empty-v1";
+const legacyCategoryStorageKey = "nutrimenu-categorias";
 const baseStorageKey = "nutrimenu-base-mestre-structured-v2";
 const legacyBaseStorageKey = "nutrimenu-base-mestre";
 
 const initialCategories = [
-  ["Legumes", "Alimentos", "Abobrinha, cenoura, chuchu, beterraba"],
-  ["Verduras", "Alimentos", "Alface, couve, rúcula, acelga"],
-  ["Grãos", "Alimentos", "Arroz, feijão, lentilha, grão-de-bico"],
-  ["Proteínas", "Alimentos", "Frango, carne, peixe, ovos"],
-  ["Frutas", "Alimentos", "Banana, mamão, maçã, melancia"],
-  ["Sobremesas", "Alimentos", "Gelatina, compota, doce diet"],
-  ["Dietas especiais", "Dietas", "Hipossódica, diabética, sem lactose"],
-  ["Texturas", "Dietas", "Branda, pastosa, líquida, semissólida"],
-  ["Guarnições", "Pratos", "Purê, legumes cozidos, farofa"],
-  ["Saladas", "Pratos", "Cruas, cozidas, compostas"],
-  ["Processos", "Processos", "Molhos, caldos, bases e refogados"],
-  ["Molhos", "Processos", "Bolonhesa, sugo, branco, madeira"]
+  ["Legumes", "Alimentos", ""],
+  ["Verduras", "Alimentos", ""],
+  ["Grãos", "Alimentos", ""],
+  ["Proteínas", "Alimentos", ""],
+  ["Frutas", "Alimentos", ""],
+  ["Sobremesas", "Alimentos", ""],
+  ["Dietas especiais", "Dietas", ""],
+  ["Texturas", "Dietas", ""],
+  ["Guarnições", "Pratos", ""],
+  ["Saladas", "Pratos", ""],
+  ["Processos", "Processos", ""],
+  ["Molhos", "Processos", ""]
 ];
 
 const mealDefinitions = [
@@ -1208,7 +1209,7 @@ categoryForm.addEventListener("submit", (event) => {
 
   const exists = categories.some(([category]) => normalizeText(category) === normalizeText(name));
   if (!exists) {
-    categories.push([name, categoryGroup.value, "Categoria cadastrada para a base mestre"]);
+    categories.push([name, categoryGroup.value, ""]);
     saveCategories();
     renderCategories();
   }
@@ -1225,8 +1226,11 @@ dayTabs.addEventListener("click", (event) => {
 
 if (clearLocalData) {
   clearLocalData.addEventListener("click", () => {
+    window.localStorage.removeItem(categoryStorageKey);
+    window.localStorage.removeItem(legacyCategoryStorageKey);
     window.localStorage.removeItem(baseStorageKey);
     window.localStorage.removeItem(legacyBaseStorageKey);
+    categories = copyValue(initialCategories);
     masterBase = emptyBase();
     if (excelInput) excelInput.value = "";
     renderEmptyImportState();
