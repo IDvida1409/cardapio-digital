@@ -1013,10 +1013,13 @@ function renderMealSelector(day = null) {
   mealSelector.innerHTML = mealDefinitions.map((meal) => {
     const menus = day && day.meals ? day.meals[meal.key] || [] : [];
     const itemCount = menus.reduce((total, menu) => total + (menu.itemCount || 0), 0);
-    const meta = menus.length ? `${plural(menus.length, "cardápio", "cardápios")} · ${plural(itemCount, "item", "itens")}` : "Sem dados";
+    const meta = day
+      ? menus.length ? `${plural(menus.length, "cardápio", "cardápios")} · ${plural(itemCount, "item", "itens")}` : "Sem dados"
+      : "Aguardando Excel";
+    const activeClass = day && meal.key === selectedMealKey ? "active" : "";
 
     return `
-      <button class="side-meal ${meal.key === selectedMealKey ? "active" : ""}" type="button" data-meal-filter="${meal.key}" data-empty="${menus.length ? "false" : "true"}">
+      <button class="side-meal ${activeClass}" type="button" data-meal-filter="${meal.key}" data-empty="${menus.length ? "false" : "true"}">
         <span>${escapeHtml(meal.title)}</span>
         <small>${escapeHtml(meta)}</small>
       </button>
@@ -1035,6 +1038,7 @@ function renderSelectedDay() {
   mealSectionTitle.textContent = `Cardápio de ${day.title}`;
   mealSectionSubtitle.textContent = `${dateLabel} · ${selectedMeal.title}`;
   validationPill.textContent = menus.length ? plural(menus.length, "cardápio", "cardápios") : "Sem dados";
+  mealGrid.hidden = false;
   mealGrid.className = "meal-grid day-board meal-focus";
   mealGrid.innerHTML = renderDayMealCard(selectedMeal, menus);
   renderMealSelector(day);
@@ -1254,9 +1258,9 @@ function renderError(message) {
   summaryTitle.textContent = "Excel não interpretado";
   summaryText.textContent = message;
   mealSectionTitle.textContent = "Cardápio";
-  mealSectionSubtitle.textContent = "Sem dados importados";
-  mealGrid.className = "meal-grid day-board meal-focus";
-  mealGrid.innerHTML = renderDayMealCard(getSelectedMealDefinition(), []);
+  mealSectionSubtitle.textContent = "Importe uma planilha válida para carregar as refeições.";
+  mealGrid.hidden = true;
+  mealGrid.innerHTML = "";
   renderMealSelector();
 }
 
@@ -1275,9 +1279,9 @@ function renderEmptyImportState() {
   summaryTitle.textContent = "Aguardando importação";
   summaryText.textContent = "Depois do Excel, esta área será preenchida com semanas, dias, sugestões e dietas.";
   mealSectionTitle.textContent = "Cardápio";
-  mealSectionSubtitle.textContent = "Sem dados importados";
-  mealGrid.className = "meal-grid day-board meal-focus";
-  mealGrid.innerHTML = renderDayMealCard(getSelectedMealDefinition(), []);
+  mealSectionSubtitle.textContent = "Importe o Excel para carregar os dias e liberar Café da Manhã, Almoço e Jantar.";
+  mealGrid.hidden = true;
+  mealGrid.innerHTML = "";
   renderMealSelector();
   renderMasterSummary();
   renderCategories();
@@ -1315,7 +1319,6 @@ if (mealSelector) {
       renderSelectedDay();
       return;
     }
-    mealGrid.innerHTML = renderDayMealCard(getSelectedMealDefinition(), []);
     renderMealSelector();
   });
 }
@@ -1374,6 +1377,8 @@ excelInput.addEventListener("change", async () => {
   summaryLabel.textContent = "Processamento local";
   summaryTitle.textContent = "Interpretando planilha";
   summaryText.textContent = "O arquivo está sendo lido no navegador. Nada é enviado para servidor nesta etapa.";
+  mealGrid.hidden = true;
+  mealGrid.innerHTML = "";
 
   try {
     const parseExcel = window.NutriMenuImporter && window.NutriMenuImporter.parseWorkbook

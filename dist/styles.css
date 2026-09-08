@@ -135,34 +135,26 @@ svg {
   flex: 0 0 auto;
 }
 
-.side-panel {
-  margin-top: 22px;
-  padding: 18px 12px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.side-panel > span {
-  display: block;
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.side-meal-list {
+.meal-subnav {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  margin: -2px 0 8px 34px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.meal-subnav:empty {
+  display: none;
 }
 
 .side-meal {
   width: 100%;
-  min-height: 52px;
+  min-height: 42px;
   display: grid;
   gap: 2px;
   border: 0;
-  border-radius: 9px;
-  padding: 8px 12px;
+  border-radius: 8px;
+  padding: 7px 11px;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.84);
   text-align: left;
@@ -176,14 +168,18 @@ svg {
 }
 
 .side-meal span {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 800;
 }
 
 .side-meal small {
   color: rgba(255, 255, 255, 0.62);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 700;
+}
+
+.side-meal[data-empty="true"] {
+  opacity: 0.78;
 }
 
 .main-area {
@@ -1150,13 +1146,12 @@ svg {
     overflow-x: auto;
   }
 
-  .side-panel {
-    margin-top: 14px;
-    padding: 14px 0 0;
-  }
-
-  .side-meal-list {
+  .meal-subnav {
+    grid-column: 1 / -1;
     grid-template-columns: repeat(3, minmax(150px, 1fr));
+    margin: -4px 0 4px;
+    padding-left: 0;
+    border-left: 0;
     overflow-x: auto;
   }
 
