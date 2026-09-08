@@ -16,6 +16,6 @@
 
   window.NutriMenuImporter = {
     parseWorkbook,
-    version: "structured-v2"
+    version: "structured-v3"
   };
 })(window);

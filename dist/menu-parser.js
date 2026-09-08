@@ -51,17 +51,49 @@
   ];
 
   const categoryRules = [
-    ["Sobremesas", ["sobremesa", "gelatina", "mousse", "pudim", "doce", "compota", "brigadeiro", "canjica", "arroz doce"]],
-    ["Frutas", ["fruta", "pera", "maca", "banana", "mamao", "melancia", "manga", "laranja", "abacaxi", "morango", "uva"]],
+    ["Processos", ["molho", "caldo", "creme", "pure", "sopa", "papa", "batido", "refogado", "cozido", "assado", "grelhado", "ensopado", "gratinado", "ragu", "bolonhesa", "sugo", "vinagrete", "vapor"]],
     ["Proteínas", ["carne", "frango", "peixe", "salmao", "mignon", "patinho", "lagarto", "atum", "ovo", "linguica", "almondega", "roty", "peito", "coxa", "sobrecoxa"]],
     ["Grãos", ["arroz", "feijao", "lentilha", "grao de bico", "macarrao", "massa", "penne", "espaguete", "polenta", "aveia"]],
     ["Verduras", ["alface", "couve", "rucula", "acelga", "escarola", "repolho", "agriao", "almeirao"]],
     ["Legumes", ["batata", "cenoura", "abobrinha", "chuchu", "beterraba", "abobora", "pepino", "palmito", "rabanete", "vagem", "berinjela", "brocolis", "mandioca", "mandioquinha", "tomate"]],
-    ["Processos", ["molho", "caldo", "creme", "pure", "sopa", "papa", "batido", "refogado", "cozido", "assado", "grelhado", "ensopado", "gratinado", "ragu", "bolonhesa", "sugo", "vinagrete", "vapor"]],
+    ["Sobremesas", ["sobremesa", "gelatina", "mousse", "pudim", "doce", "compota", "brigadeiro", "canjica", "arroz doce"]],
+    ["Frutas", ["fruta", "pera", "maca", "banana", "mamao", "melancia", "manga", "laranja", "abacaxi", "morango", "uva"]],
     ["Preparações", []]
   ];
 
   const processTerms = categoryRules.find(([category]) => category === "Processos")[1];
+
+  const canonicalFoodRules = [
+    ["Arroz", "Grãos", ["arroz"]],
+    ["Feijão", "Grãos", ["feijao"]],
+    ["Lentilha", "Grãos", ["lentilha"]],
+    ["Grão-de-bico", "Grãos", ["grao de bico"]],
+    ["Macarrão", "Grãos", ["macarrao", "massa", "penne", "espaguete"]],
+    ["Batata", "Legumes", ["batata"]],
+    ["Cenoura", "Legumes", ["cenoura"]],
+    ["Abobrinha", "Legumes", ["abobrinha"]],
+    ["Abóbora", "Legumes", ["abobora"]],
+    ["Chuchu", "Legumes", ["chuchu"]],
+    ["Beterraba", "Legumes", ["beterraba"]],
+    ["Vagem", "Legumes", ["vagem"]],
+    ["Brócolis", "Legumes", ["brocolis"]],
+    ["Alface", "Verduras", ["alface"]],
+    ["Acelga", "Verduras", ["acelga"]],
+    ["Couve", "Verduras", ["couve"]],
+    ["Escarola", "Verduras", ["escarola"]],
+    ["Tomate", "Legumes", ["tomate"]],
+    ["Frango", "Proteínas", ["frango"]],
+    ["Carne", "Proteínas", ["carne", "mignon", "patinho", "lagarto", "roty"]],
+    ["Peixe", "Proteínas", ["peixe", "salmao", "tilapia", "pescada"]],
+    ["Ovo", "Proteínas", ["ovo"]],
+    ["Banana", "Frutas", ["banana"]],
+    ["Maçã", "Frutas", ["maca"]],
+    ["Pera", "Frutas", ["pera"]],
+    ["Mamão", "Frutas", ["mamao"]],
+    ["Manga", "Frutas", ["manga"]],
+    ["Melancia", "Frutas", ["melancia"]],
+    ["Abacaxi", "Frutas", ["abacaxi"]]
+  ];
 
   const controlPatterns = [
     /^cardapio\b/,
@@ -114,7 +146,7 @@
       processos: new Map(),
       dietas: new Map(),
       warnings: [],
-      parserVersion: "structured-v2"
+      parserVersion: "structured-v3"
     };
   }
 
@@ -211,8 +243,9 @@
   }
 
   function detectSuggestion(normalizedText) {
-    const suggestion = normalizedText.match(/^sugestao\s*(\d+)/);
-    return suggestion ? `Sugestão ${suggestion[1]}` : "";
+    const suggestion = normalizedText.match(/^(sugestao|sug|opcao|alternativa)\s*(\d+)/);
+    if (suggestion) return `Sugestão ${suggestion[2]}`;
+    return "";
   }
 
   function getPrefixedCategory(text) {
@@ -282,12 +315,23 @@
   function classifyText(text, explicitCategory = "") {
     if (explicitCategory) return explicitCategory;
     const normalized = core.normalizeText(text);
-    const match = categoryRules.find(([, terms]) => terms.some((term) => normalized.includes(term)));
+    if (isProcessName(normalized)) return "Processos";
+
+    const match = categoryRules
+      .filter(([category]) => category !== "Processos")
+      .find(([, terms]) => terms.some((term) => normalized.includes(term)));
     return match ? match[0] : "Preparações";
   }
 
+  function isProcessName(normalizedText) {
+    const words = normalizedText.split(/\s+/).filter(Boolean).length;
+    if (/^(molho|caldo|creme|base|sopa|papa|pure|vinagrete)\b/.test(normalizedText)) return true;
+    if (words <= 5 && /\b(bolonhesa|sugo|bechamel|madeira|branco)\b/.test(normalizedText)) return true;
+    return false;
+  }
+
   function isProcess(normalizedText) {
-    return processTerms.some((term) => normalizedText.includes(term));
+    return isProcessName(normalizedText);
   }
 
   function extractDiets(normalizedText, dietMap, source) {
@@ -304,14 +348,30 @@
       .trim());
   }
 
+  function stripOuterParentheses(text) {
+    let clean = String(text || "").trim();
+    while (clean.startsWith("(") && clean.endsWith(")")) {
+      const inner = clean.slice(1, -1).trim();
+      if (!inner) break;
+      clean = inner;
+    }
+    return clean;
+  }
+
+  function splitComponentCandidates(item) {
+    const clean = stripOuterParentheses(item);
+    const pieces = core.splitDishComponents(clean);
+    return pieces.length ? pieces : [clean];
+  }
+
   function buildComponents(item, explicitCategory) {
-    const pieces = core.splitDishComponents(item);
+    const pieces = splitComponentCandidates(item);
     const candidates = pieces.length ? pieces : [item];
     const keys = new Set();
     const components = [];
 
     candidates.forEach((candidate) => {
-      const clean = normalizePreparationName(candidate);
+      const clean = normalizePreparationName(stripOuterParentheses(candidate));
       const key = core.normalizeText(clean);
       if (!key || keys.has(key) || isIgnorableCandidate(clean)) return;
       keys.add(key);
@@ -323,6 +383,28 @@
     });
 
     return components;
+  }
+
+  function isLikelyAtomicFood(component) {
+    if (!component || !component.name) return false;
+    if (!["Grãos", "Legumes", "Verduras", "Proteínas", "Frutas", "Laticínios"].includes(component.category)) return false;
+
+    const normalized = core.normalizeText(component.name);
+    const words = normalized.split(/\s+/).filter(Boolean).length;
+    if (words > 5) return false;
+    if (/[(),]/.test(component.name)) return false;
+    if (/\b(com|ao|aos|a|de)\b/.test(normalized) && words > 3) return false;
+    if (processTerms.some((term) => normalized.includes(term)) && words > 2) return false;
+    return true;
+  }
+
+  function addCanonicalFoodMatches(text, foodMap, source) {
+    const normalized = core.normalizeText(text);
+    canonicalFoodRules.forEach(([name, category, terms]) => {
+      if (terms.some((term) => normalized.includes(term))) {
+        core.addRecord(foodMap, name, { category, source });
+      }
+    });
   }
 
   function addSectionItem(sectionMap, category, item) {
@@ -353,20 +435,26 @@
     }
   }
 
-  function getColumnValue(map, col, fallback) {
-    if (map.has(col)) return map.get(col);
-    for (let current = col - 1; current >= 1; current -= 1) {
-      if (map.has(current)) return map.get(current);
-    }
-    return fallback;
+  function createColumnContext(title, startCol, endCol) {
+    const cleanTitle = title || "Cardápio geral";
+    return {
+      title: cleanTitle,
+      startCol: startCol || 1,
+      endCol: endCol || startCol || 1,
+      id: `${core.normalizeText(cleanTitle)}-${startCol || 1}-${endCol || startCol || 1}`
+    };
   }
 
-  function groupKey(groupTitle, startCol) {
-    return `${core.normalizeText(groupTitle)}-${startCol}`;
+  function getColumnContext(map, col, fallbackTitle, startCol, endCol) {
+    return map.get(col) || createColumnContext(fallbackTitle, startCol, endCol);
   }
 
-  function suggestionKey(groupTitle, suggestionTitle, startCol) {
-    return `${core.normalizeText(groupTitle)}-${core.normalizeText(suggestionTitle)}-${startCol}`;
+  function groupKey(groupContext) {
+    return groupContext.id;
+  }
+
+  function suggestionKey(groupContext, suggestionContext) {
+    return `${groupContext.id}-${suggestionContext.id}`;
   }
 
   function finalizeSectionMap(sectionMap) {
@@ -381,6 +469,7 @@
     core.addRecord(imported.preparacoes, clean, { category, source });
     extractDiets(key, imported.dietas, source);
     if (isProcess(key) || category === "Processos") core.addRecord(imported.processos, clean, { category: "Processos", source });
+    addCanonicalFoodMatches(clean, imported.alimentos, source);
 
     components.forEach((component) => {
       const normalized = component.key;
@@ -388,7 +477,8 @@
       if (component.category === "Processos") {
         core.addRecord(imported.processos, component.name, { category: "Processos", source });
       }
-      if (!["Processos", "Preparações", "Dietas", "Opções"].includes(component.category)) {
+      addCanonicalFoodMatches(component.name, imported.alimentos, source);
+      if (isLikelyAtomicFood(component)) {
         core.addRecord(imported.alimentos, component.name, { category: component.category, source });
       }
     });
@@ -403,23 +493,24 @@
     const maxColumn = Math.max(...allColumns, 20);
     const source = `${sheetName} / ${header.mealTitle}${header.cardNumber ? ` ${header.cardNumber}` : ""}`;
 
-    function getGroup(groupTitle, startCol) {
-      const normalizedGroupTitle = groupTitle || "Cardápio geral";
-      const groupId = groupKey(normalizedGroupTitle, startCol);
+    function getGroup(groupContext) {
+      const groupId = groupKey(groupContext);
       const group = groups.get(groupId) || {
-        title: normalizedGroupTitle,
-        startCol,
+        title: groupContext.title,
+        startCol: groupContext.startCol,
+        endCol: groupContext.endCol,
         suggestions: new Map()
       };
       groups.set(groupId, group);
       return group;
     }
 
-    function getSuggestion(group, suggestionTitle, startCol) {
-      const normalizedSuggestionTitle = suggestionTitle || "Itens gerais";
-      const itemSuggestionKey = suggestionKey(group.title, normalizedSuggestionTitle, startCol);
+    function getSuggestion(group, groupContext, suggestionContext) {
+      const itemSuggestionKey = suggestionKey(groupContext, suggestionContext);
       const suggestion = group.suggestions.get(itemSuggestionKey) || {
-        title: normalizedSuggestionTitle,
+        title: suggestionContext.title,
+        startCol: suggestionContext.startCol,
+        endCol: suggestionContext.endCol,
         sections: new Map(),
         dishes: [],
         dishKeys: new Set(),
@@ -435,7 +526,7 @@
       flatSections.set(category, section);
     }
 
-    function addDish(groupTitle, suggestionTitle, item, explicitCategory, startCol) {
+    function addDish(groupContext, suggestionContext, item, explicitCategory) {
       const clean = normalizePreparationName(item);
       const key = core.normalizeText(clean);
       if (!key || isIgnorableCandidate(clean)) return;
@@ -443,8 +534,8 @@
       const category = classifyText(clean, explicitCategory);
       const components = buildComponents(clean, explicitCategory);
       const visibleComponents = components.length ? components : [{ name: clean, key, category }];
-      const group = getGroup(groupTitle, startCol);
-      const suggestion = getSuggestion(group, suggestionTitle, startCol);
+      const group = getGroup(groupContext);
+      const suggestion = getSuggestion(group, groupContext, suggestionContext);
 
       if (!suggestion.dishKeys.has(key)) {
         const dishSections = new Map();
@@ -464,36 +555,39 @@
       }
 
       addToMasterMaps(imported, clean, visibleComponents, category, source);
-      groups.set(groupKey(group.title, startCol), group);
+      groups.set(groupKey(groupContext), group);
     }
 
     blockRows.forEach((row) => {
       const ranges = getCellRanges(row.cells, maxColumn);
 
       ranges.forEach((cell) => {
-        const normalized = core.normalizeText(cell.text);
-        const suggestion = detectSuggestion(normalized);
-        if (suggestion) {
-          applyColumnRange(suggestionByColumn, cell.startCol, cell.endCol, suggestion);
-        }
+        core.splitCellSegments(cell.text).forEach((segment) => {
+          const normalized = core.normalizeText(segment);
+          const suggestion = detectSuggestion(normalized);
+          if (suggestion) {
+            applyColumnRange(suggestionByColumn, cell.startCol, cell.endCol, createColumnContext(suggestion, cell.startCol, cell.endCol));
+          }
 
-        if (looksLikeDietHeader(cell.text)) {
-          const sectionTitle = normalizeSectionTitle(cell.text);
-          applyColumnRange(groupByColumn, cell.startCol, cell.endCol, sectionTitle);
-          extractDiets(normalized, imported.dietas, source);
-        }
+          if (looksLikeDietHeader(segment)) {
+            const sectionTitle = normalizeSectionTitle(segment);
+            applyColumnRange(groupByColumn, cell.startCol, cell.endCol, createColumnContext(sectionTitle, cell.startCol, cell.endCol));
+            applyColumnRange(suggestionByColumn, cell.startCol, cell.endCol, createColumnContext("Itens gerais", cell.startCol, cell.endCol));
+            extractDiets(normalized, imported.dietas, source);
+          }
+        });
       });
 
       ranges.forEach((cell) => {
-        if (detectSuggestion(core.normalizeText(cell.text)) || looksLikeDietHeader(cell.text)) return;
+        const groupContext = getColumnContext(groupByColumn, cell.colNumber, "Cardápio geral", cell.startCol, cell.endCol);
+        const suggestionContext = getColumnContext(suggestionByColumn, cell.colNumber, "Itens gerais", cell.startCol, cell.endCol);
 
-        const groupTitle = getColumnValue(groupByColumn, cell.colNumber, "Cardápio geral");
-        const suggestionTitle = getColumnValue(suggestionByColumn, cell.colNumber, "Itens gerais");
         core.splitCellSegments(cell.text).forEach((segment) => {
           const normalized = core.normalizeText(segment);
           if (detectSuggestion(normalized)) return;
           if (looksLikeDietHeader(segment)) {
-            applyColumnRange(groupByColumn, cell.startCol, cell.endCol, normalizeSectionTitle(segment));
+            applyColumnRange(groupByColumn, cell.startCol, cell.endCol, createColumnContext(normalizeSectionTitle(segment), cell.startCol, cell.endCol));
+            applyColumnRange(suggestionByColumn, cell.startCol, cell.endCol, createColumnContext("Itens gerais", cell.startCol, cell.endCol));
             extractDiets(normalized, imported.dietas, source);
             return;
           }
@@ -502,7 +596,10 @@
           const itemText = prefixed && prefixed.itemText ? prefixed.itemText : segment;
           if (isIgnorableCandidate(segment) && !prefixed) return;
           if (isIgnorableCandidate(itemText)) return;
-          addDish(groupTitle, prefixed ? prefixed.title : suggestionTitle, itemText, prefixed ? prefixed.category : "", cell.startCol);
+          const itemSuggestionContext = prefixed
+            ? createColumnContext(prefixed.title, cell.startCol, cell.endCol)
+            : suggestionContext;
+          addDish(groupContext, itemSuggestionContext, itemText, prefixed ? prefixed.category : "");
         });
       });
     });

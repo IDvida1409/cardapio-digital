@@ -1,6 +1,6 @@
-const categoryStorageKey = "nutrimenu-categorias-empty-v1";
+const categoryStorageKey = "nutrimenu-categorias-empty-v3";
 const legacyCategoryStorageKey = "nutrimenu-categorias";
-const baseStorageKey = "nutrimenu-base-mestre-structured-v2";
+const baseStorageKey = "nutrimenu-base-mestre-auto-v3";
 const legacyBaseStorageKey = "nutrimenu-base-mestre";
 
 const initialCategories = [
@@ -225,6 +225,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function plural(count, singular, pluralText) {
+  return `${count} ${count === 1 ? singular : pluralText}`;
+}
+
 function cellToText(value) {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) return value.toLocaleDateString("pt-BR");
@@ -302,7 +306,7 @@ function renderCategories() {
     card.innerHTML = `
       <strong>${escapeHtml(group.name)}</strong>
       ${renderCategoryItems(uniqueItems, group.examples)}
-      <em>${uniqueItems.length ? `${uniqueItems.length} item(ns)` : escapeHtml(group.group)}</em>
+      <em>${uniqueItems.length ? plural(uniqueItems.length, "item", "itens") : escapeHtml(group.group)}</em>
     `;
     categoryGrid.appendChild(card);
   });
@@ -442,8 +446,8 @@ function extractRows(worksheet) {
 }
 
 function detectSuggestion(normalizedText) {
-  const suggestion = normalizedText.match(/^sugestao\s*(\d+)/);
-  return suggestion ? `Sugestão ${suggestion[1]}` : "";
+  const suggestion = normalizedText.match(/^(sugestao|sug|opcao|alternativa)\s*(\d+)/);
+  return suggestion ? `Sugestão ${suggestion[2]}` : "";
 }
 
 function getPrefixedCategory(text) {
@@ -985,8 +989,8 @@ function renderSelectedDay() {
   const dateLabel = day.dateText ? `Dia ${day.dateText}` : day.subtitle;
 
   mealSectionTitle.textContent = `Cardápio de ${day.title}`;
-  mealSectionSubtitle.textContent = `${dateLabel} · ${day.sheetName}`;
-  validationPill.textContent = `${day.mealCount} refeição(ões)`;
+  mealSectionSubtitle.textContent = `${dateLabel} · ${plural(day.mealCount, "refeição importada", "refeições importadas")}`;
+  validationPill.textContent = plural(day.mealCount, "refeição", "refeições");
   mealGrid.className = "meal-grid day-board";
   mealGrid.innerHTML = mealDefinitions.map((meal) => renderDayMealCard(meal, day.meals[meal.key] || [])).join("");
   renderDayTabs(currentImported);
@@ -1018,7 +1022,7 @@ function renderDayMealCard(meal, menus) {
         ${renderMealIcon(meal.key)}
         <div>
           <h3>${escapeHtml(meal.title)}</h3>
-          <p>${menus.length} bloco(s), ${totalItems} item(ns) reconhecidos.</p>
+          <p>${plural(menus.length, "cardápio", "cardápios")}, ${plural(totalItems, "item", "itens")} reconhecidos.</p>
         </div>
       </div>
       <div class="meal-body imported-meal day-meal">
@@ -1053,7 +1057,9 @@ function renderMealIcon(mealKey) {
 }
 
 function renderMenuBlock(menu) {
-  if (!menu.groups.length) {
+  const groups = Array.isArray(menu.groups) ? menu.groups : [];
+
+  if (!groups.length) {
     return `
       <div class="menu-block-empty">
         <strong>${escapeHtml(menu.title)}</strong>
@@ -1062,7 +1068,21 @@ function renderMenuBlock(menu) {
     `;
   }
 
-  return menu.groups.map((group, index) => renderDietGroup(group, index === 0)).join("");
+  const itemCount = groups.reduce((total, group) => (
+    total + group.suggestions.reduce((groupTotal, suggestion) => groupTotal + suggestion.itemCount, 0)
+  ), 0);
+
+  return `
+    <details class="recognized-block menu-shell" open>
+      <summary>
+        <span>${escapeHtml(menu.title)}</span>
+        <em>${plural(groups.length, "tipo", "tipos")} · ${plural(itemCount, "item", "itens")}</em>
+      </summary>
+      <div class="menu-group-stack">
+        ${groups.map((group) => renderDietGroup(group, false)).join("")}
+      </div>
+    </details>
+  `;
 }
 
 function renderDietGroup(group, open) {
@@ -1071,8 +1091,9 @@ function renderDietGroup(group, open) {
   return `
     <details class="diet-block" ${open ? "open" : ""}>
       <summary>
+        <span class="summary-plus" aria-hidden="true"></span>
         <span>${escapeHtml(group.title)}</span>
-        <em>${group.suggestions.length} sugestão(ões) · ${itemCount} componente(s)</em>
+        <em>${plural(group.suggestions.length, "sugestão", "sugestões")} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
       <div class="suggestion-grid">
         ${group.suggestions.map((suggestion) => renderSuggestionCard(suggestion)).join("")}
@@ -1088,7 +1109,7 @@ function renderSuggestionCard(suggestion) {
     <article class="suggestion-card">
       <header class="suggestion-card-header">
         <strong>${escapeHtml(suggestion.title)}</strong>
-        <span>${suggestion.itemCount} componente(s)</span>
+        <span>${plural(suggestion.itemCount, "item", "itens")}</span>
       </header>
       ${dishes.length ? `
         <div class="dish-stack">
@@ -1146,9 +1167,9 @@ function renderReview(imported, created) {
   importReview.hidden = false;
   const periodLines = imported.periods.map((period) => `${period.sheetName}: ${period.period}.`);
   const lines = [
-    `${imported.days.length} dia(s) e ${imported.cardapios.length} refeição(ões) identificados em ${imported.menuSheets.length} aba(s).`,
+    `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")} identificados em ${plural(imported.menuSheets.length, "aba", "abas")}.`,
     ...periodLines,
-    `${created.preparacoes} preparação(ões), ${created.alimentos} alimento(s), ${created.processos} processo(s) e ${created.dietas} dieta(s) cadastrados como novos.`
+    `${plural(created.preparacoes, "preparação", "preparações")}, ${plural(created.alimentos, "alimento", "alimentos")}, ${plural(created.processos, "processo", "processos")} e ${plural(created.dietas, "dieta", "dietas")} cadastrados como novos.`
   ].concat(imported.warnings);
 
   reviewList.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
@@ -1159,10 +1180,10 @@ function renderImportedState(imported, created) {
   selectedDayKey = (imported.days.find((day) => day.dateText && day.dateText.startsWith("24/")) || imported.days.find((day) => day.dateText) || imported.days[0] || {}).key || "";
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
-  datePickerLabel.textContent = `${imported.days.length} dia(s) importados`;
+  datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
   summaryLabel.textContent = "Arquivo lido localmente";
   summaryTitle.textContent = imported.periodLabel;
-  summaryText.textContent = `${imported.days.length} dia(s) e ${imported.cardapios.length} refeição(ões). Períodos: ${imported.periods.map((period) => period.label).join("; ")}.`;
+  summaryText.textContent = `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")}. Períodos: ${imported.periods.map((period) => period.label).join("; ")}.`;
   renderSelectedDay();
   renderMasterSummary(created);
   renderCategories();
@@ -1230,6 +1251,13 @@ if (clearLocalData) {
     window.localStorage.removeItem(legacyCategoryStorageKey);
     window.localStorage.removeItem(baseStorageKey);
     window.localStorage.removeItem(legacyBaseStorageKey);
+    [
+      "nutrimenu-categorias-empty-v1",
+      "nutrimenu-categorias-empty-v2",
+      "nutrimenu-base-mestre-structured-v2",
+      "nutrimenu-base-mestre-guided-v1",
+      "nutrimenu-import-profile-guided-v1"
+    ].forEach((key) => window.localStorage.removeItem(key));
     categories = copyValue(initialCategories);
     masterBase = emptyBase();
     if (excelInput) excelInput.value = "";

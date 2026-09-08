@@ -616,6 +616,12 @@ svg {
   margin-top: 0;
 }
 
+.menu-group-stack {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
 .diet-block,
 .suggestion-card {
   overflow: hidden;
@@ -625,10 +631,10 @@ svg {
 }
 
 .diet-block > summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
   list-style: none;
 }
@@ -638,15 +644,35 @@ svg {
 }
 
 .diet-block > summary {
-  min-height: 52px;
-  padding: 12px 14px;
+  min-height: 48px;
+  padding: 11px 13px;
   color: var(--green-800);
   font-weight: 800;
 }
 
-.diet-block > summary span {
+.diet-block > summary span:not(.summary-plus) {
   min-width: 0;
   line-height: 1.25;
+}
+
+.summary-plus {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green-50);
+  color: var(--green-800);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.summary-plus::before {
+  content: "+";
+}
+
+.diet-block[open] > summary .summary-plus::before {
+  content: "-";
 }
 
 .diet-block > summary em {
@@ -655,6 +681,8 @@ svg {
   font-size: 0.76rem;
   font-style: normal;
   font-weight: 800;
+  line-height: 1.25;
+  text-align: right;
 }
 
 .suggestion-grid {
@@ -761,10 +789,14 @@ svg {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #f8fbfa;
+  background: #ffffff;
 }
 
-.recognized-block summary {
+.recognized-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.recognized-block > summary {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -774,16 +806,22 @@ svg {
   color: var(--green-800);
   cursor: pointer;
   font-weight: 800;
+  list-style: none;
 }
 
-.recognized-block summary span {
+.menu-shell > summary {
+  background: linear-gradient(180deg, #ffffff, #f8fbfa);
+  border-bottom: 1px solid rgba(214, 224, 221, 0.7);
+}
+
+.recognized-block > summary span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.recognized-block summary em {
+.recognized-block > summary em {
   flex: 0 0 auto;
   color: var(--muted);
   font-size: 0.78rem;
