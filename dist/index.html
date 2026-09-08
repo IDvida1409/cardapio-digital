@@ -86,7 +86,7 @@
           </div>
           <div class="title-actions">
             <label class="import-button">
-              <input id="excelInput" type="file" accept=".xlsx,.xls">
+              <input id="excelInput" type="file" accept=".xlsx">
               Importar Excel
             </label>
           </div>
@@ -99,7 +99,7 @@
             </button>
             <button class="date-picker" type="button" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4"></path><path d="M17 3v4"></path><path d="M4 9h16"></path><path d="M5 5h14v15H5Z"></path></svg>
-              Nenhuma semana importada
+              <span id="datePickerLabel">Nenhuma semana importada</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
             </button>
             <button type="button" aria-label="Próxima semana" disabled>
@@ -115,25 +115,25 @@
         </section>
 
         <section class="menu-card">
-          <div class="empty-week">
+          <div class="empty-week" id="importSummary">
             <div>
-              <span>Cardápio</span>
-              <strong>Aguardando importação</strong>
+              <span id="summaryLabel">Cardápio</span>
+              <strong id="summaryTitle">Aguardando importação</strong>
             </div>
-            <p>Depois do Excel, esta área será preenchida com semanas, dias, sugestões e dietas.</p>
+            <p id="summaryText">Depois do Excel, esta área será preenchida com semanas, dias, sugestões e dietas.</p>
           </div>
 
           <div class="day-content">
             <div class="day-heading">
               <div>
-                <h2>Refeições principais</h2>
-                <p>Sem dados importados</p>
+                <h2 id="mealSectionTitle">Refeições principais</h2>
+                <p id="mealSectionSubtitle">Sem dados importados</p>
               </div>
               <span class="validation-pill">Aguardando Excel</span>
             </div>
 
-            <div class="meal-grid">
-              <article class="meal-card breakfast">
+            <div class="meal-grid" id="mealGrid">
+              <article class="meal-card breakfast" data-meal-card="cafe">
                 <div class="meal-head">
                   <span class="meal-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3"></path><path d="M12 19v3"></path><path d="M4.9 4.9 7 7"></path><path d="m17 17 2.1 2.1"></path><path d="M2 12h3"></path><path d="M19 12h3"></path><path d="m4.9 19.1 2.1-2.1"></path><path d="m17 7 2.1-2.1"></path></svg>
@@ -143,7 +143,7 @@
                     <p>Itens serão carregados pela planilha.</p>
                   </div>
                 </div>
-                <div class="empty-meal">
+                <div class="meal-body empty-meal" data-meal-body="cafe">
                   <span></span>
                   <span></span>
                   <span></span>
@@ -151,7 +151,7 @@
                 <button class="ghost-action" type="button">Aguardando Excel</button>
               </article>
 
-              <article class="meal-card lunch">
+              <article class="meal-card lunch" data-meal-card="almoco">
                 <div class="meal-head">
                   <span class="meal-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><path d="M7 3v18"></path><path d="M11 3v7a4 4 0 0 1-8 0V3"></path><path d="M17 3v18"></path><path d="M17 3c2.5 1.4 4 4.1 4 7.5 0 3.5-1.5 6.2-4 7.5"></path></svg>
@@ -161,7 +161,7 @@
                     <p>Sugestões, dietas e opções aparecerão aqui.</p>
                   </div>
                 </div>
-                <div class="empty-meal large">
+                <div class="meal-body empty-meal large" data-meal-body="almoco">
                   <span></span>
                   <span></span>
                   <span></span>
@@ -170,7 +170,7 @@
                 <button class="ghost-action" type="button">Aguardando Excel</button>
               </article>
 
-              <article class="meal-card dinner">
+              <article class="meal-card dinner" data-meal-card="jantar">
                 <div class="meal-head">
                   <span class="meal-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><path d="M20 14.2A8 8 0 1 1 9.8 4a6.5 6.5 0 0 0 10.2 10.2Z"></path></svg>
@@ -180,7 +180,7 @@
                     <p>Preparações e processos serão vinculados depois.</p>
                   </div>
                 </div>
-                <div class="empty-meal">
+                <div class="meal-body empty-meal" data-meal-body="jantar">
                   <span></span>
                   <span></span>
                   <span></span>
@@ -194,8 +194,8 @@
         <section class="category-section" id="categorias">
           <div class="category-heading">
             <div>
-              <h2>Categorias da base</h2>
-              <p>Começamos por aqui. Depois o Excel vai alimentar alimentos, pratos, processos e dietas.</p>
+              <h2>Base mestre</h2>
+              <p>Categorias iniciais e registros criados a partir do Excel.</p>
             </div>
             <form id="categoryForm" class="category-form">
               <input id="categoryName" type="text" placeholder="Nova categoria">
@@ -209,11 +209,17 @@
             </form>
           </div>
 
+          <div class="master-summary" id="masterSummary" aria-live="polite"></div>
+          <div class="import-review" id="importReview" hidden>
+            <h3>Revisão da importação</h3>
+            <ul id="reviewList"></ul>
+          </div>
           <div id="categoryGrid" class="category-grid" aria-live="polite"></div>
         </section>
       </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
