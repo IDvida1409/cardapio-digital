@@ -270,6 +270,7 @@ svg {
   gap: 11px;
 }
 
+.clear-local-button,
 .import-button,
 .date-controls button,
 .view-switch button,
@@ -281,6 +282,16 @@ svg {
   background: rgba(255, 255, 255, 0.86);
   color: var(--ink);
   font-weight: 700;
+}
+
+.clear-local-button {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+}
+
+.clear-local-button:hover {
+  color: var(--green-800);
+  border-color: rgba(9, 129, 95, 0.28);
 }
 
 .import-button {

@@ -1,5 +1,6 @@
 const categoryStorageKey = "nutrimenu-categorias";
-const baseStorageKey = "nutrimenu-base-mestre";
+const baseStorageKey = "nutrimenu-base-mestre-structured-v2";
+const legacyBaseStorageKey = "nutrimenu-base-mestre";
 
 const initialCategories = [
   ["Legumes", "Alimentos", "Abobrinha, cenoura, chuchu, beterraba"],
@@ -139,6 +140,7 @@ const categoryForm = document.getElementById("categoryForm");
 const categoryName = document.getElementById("categoryName");
 const categoryGroup = document.getElementById("categoryGroup");
 const excelInput = document.getElementById("excelInput");
+const clearLocalData = document.getElementById("clearLocalData");
 const validationPill = document.querySelector(".validation-pill");
 const datePickerLabel = document.getElementById("datePickerLabel");
 const summaryLabel = document.getElementById("summaryLabel");
@@ -1177,6 +1179,27 @@ function renderError(message) {
   summaryText.textContent = message;
 }
 
+function renderEmptyImportState() {
+  currentImported = null;
+  selectedDayKey = "";
+  dayTabs.hidden = true;
+  dayTabs.innerHTML = "";
+  importReview.hidden = true;
+  reviewList.innerHTML = "";
+  validationPill.textContent = "Aguardando Excel";
+  validationPill.classList.remove("selected-file");
+  datePickerLabel.textContent = "Nenhuma semana importada";
+  summaryLabel.textContent = "Cardápio";
+  summaryTitle.textContent = "Aguardando importação";
+  summaryText.textContent = "Depois do Excel, esta área será preenchida com semanas, dias, sugestões e dietas.";
+  mealSectionTitle.textContent = "Refeições principais";
+  mealSectionSubtitle.textContent = "Sem dados importados";
+  mealGrid.className = "meal-grid";
+  mealGrid.innerHTML = mealDefinitions.map((meal) => renderDayMealCard(meal, [])).join("");
+  renderMasterSummary();
+  renderCategories();
+}
+
 categoryForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
@@ -1199,6 +1222,16 @@ dayTabs.addEventListener("click", (event) => {
   selectedDayKey = button.dataset.dayKey;
   renderSelectedDay();
 });
+
+if (clearLocalData) {
+  clearLocalData.addEventListener("click", () => {
+    window.localStorage.removeItem(baseStorageKey);
+    window.localStorage.removeItem(legacyBaseStorageKey);
+    masterBase = emptyBase();
+    if (excelInput) excelInput.value = "";
+    renderEmptyImportState();
+  });
+}
 
 excelInput.addEventListener("change", async () => {
   const file = excelInput.files && excelInput.files[0];
