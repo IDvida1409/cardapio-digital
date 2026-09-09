@@ -4,6 +4,7 @@ import os
 import re
 import sqlite3
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -27,6 +28,24 @@ except Exception:  # pragma: no cover - optional outside production
 PARSER_VERSION = "backend-ai-v1"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_BLOCKS_PER_IMPORT = 80
+MAX_PARALLEL_AI_BLOCKS = 4
+WEEKDAY_LABELS = {
+    "segunda": "Segunda-feira",
+    "terca": "Terça-feira",
+    "quarta": "Quarta-feira",
+    "quinta": "Quinta-feira",
+    "sexta": "Sexta-feira",
+    "sabado": "Sábado",
+    "domingo": "Domingo",
+}
+MEAL_LABELS = {
+    "cafe": "Café da Manhã",
+    "almoco": "Almoço",
+    "jantar": "Jantar",
+    "ceia": "Ceia",
+    "lanche": "Lanche",
+}
 
 
 def now_iso():
@@ -283,6 +302,239 @@ def build_ai_prompt(raw_workbook):
     }
 
 
+def source_ref(cell):
+    return f"{cell['sheetIndex']}!{cell['address']}"
+
+
+def ranges_overlap(left_start, left_end, right_start, right_end):
+    return left_start <= right_end and right_start <= left_end
+
+
+def detect_header_info(text):
+    normalized = normalize_text(text)
+    if "cardapio" not in normalized and "menu" not in normalized:
+        return None
+
+    date_match = re.search(r"\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b", str(text or ""))
+    day_name = next((label for key, label in WEEKDAY_LABELS.items() if key in normalized), "")
+    meal_name = next((label for key, label in MEAL_LABELS.items() if key in normalized), "")
+    card_match = re.search(r"\b(?:cardapio|menu)\s*(\d+)\b", normalized)
+
+    if not date_match and not day_name and not meal_name:
+        return None
+
+    date_text = ""
+    if date_match:
+        day = date_match.group(1).zfill(2)
+        month = date_match.group(2).zfill(2)
+        year = date_match.group(3)
+        date_text = f"{day}/{month}/{year}" if year else f"{day}/{month}"
+
+    return {
+        "title": " ".join(str(text or "").split()),
+        "date": date_text,
+        "dayName": day_name,
+        "mealName": meal_name,
+        "cardNumber": card_match.group(1) if card_match else "",
+    }
+
+
+def cells_in_rows(cells):
+    rows = {}
+    for cell in cells:
+        rows.setdefault(cell["row"], {"row": cell["row"], "cells": []})
+        rows[cell["row"]]["cells"].append(cell)
+
+    result = []
+    for row in sorted(rows.values(), key=lambda item: item["row"]):
+        row["cells"].sort(key=lambda cell: (cell["startColumn"], cell["column"]))
+        result.append(row)
+    return result
+
+
+def detect_menu_blocks(raw_workbook):
+    blocks = []
+    for sheet in raw_workbook["sheets"]:
+        sheet_cells = [cell for row in sheet["rows"] for cell in row["cells"]]
+        headers = []
+        for cell in sheet_cells:
+            header_info = detect_header_info(cell["text"])
+            if header_info:
+                headers.append({**cell, "headerInfo": header_info})
+
+        headers.sort(key=lambda cell: (cell["startRow"], cell["startColumn"]))
+        if not headers:
+            continue
+
+        for index, header in enumerate(headers[:MAX_BLOCKS_PER_IMPORT]):
+            next_rows = [
+                other["startRow"]
+                for other in headers
+                if other["startRow"] > header["startRow"]
+                and ranges_overlap(header["startColumn"], header["endColumn"], other["startColumn"], other["endColumn"])
+            ]
+            end_row = min(next_rows) - 1 if next_rows else sheet["rowCount"]
+            start_col = header["startColumn"]
+            end_col = header["endColumn"] if header["columnSpan"] > 1 else sheet["columnCount"]
+            block_cells = [
+                cell
+                for cell in sheet_cells
+                if cell["startRow"] >= header["startRow"]
+                and cell["startRow"] <= end_row
+                and ranges_overlap(start_col, end_col, cell["startColumn"], cell["endColumn"])
+            ]
+
+            if len(block_cells) <= 1:
+                continue
+
+            block_name = f"{sheet['name']} / {header['headerInfo']['title']}"
+            blocks.append(
+                {
+                    "header": header,
+                    "sourceRefs": {source_ref(cell) for cell in block_cells},
+                    "raw": {
+                        "fileName": raw_workbook["fileName"],
+                        "sha256": raw_workbook["sha256"],
+                        "sheetCount": 1,
+                        "sheets": [
+                            {
+                                "name": block_name,
+                                "index": sheet["index"],
+                                "rowCount": end_row - header["startRow"] + 1,
+                                "columnCount": end_col - start_col + 1,
+                                "rows": cells_in_rows(block_cells),
+                            }
+                        ],
+                        "usefulCells": block_cells,
+                    },
+                }
+            )
+    return blocks
+
+
+def build_block_prompt(block):
+    prompt = build_ai_prompt(block["raw"])
+    prompt["instruction"] = (
+        "Este payload é um recorte de um único bloco de cardápio hospitalar. "
+        "Use o cabeçalho detectado apenas como ponto de partida extraído da própria planilha. "
+        "Preserve a hierarquia visual dentro deste bloco: título do cardápio, tipos/subtítulos, itens comuns, sugestões e itens das sugestões. "
+        "Não classifique alimentos por categoria clínica nesta etapa; mantenha o texto como aparece no cardápio. "
+        "Não invente dados e não use conhecimento prévio sobre hospitais. "
+        "Toda célula com texto útil dentro deste recorte deve estar em celulasUsadas, celulasIgnoradas com motivo, ou celulasPendentes."
+    )
+    prompt["detectedHeader"] = block["header"]["headerInfo"]
+    return prompt
+
+
+def merge_block_result(target, block, block_result, model):
+    header = block["header"]["headerInfo"]
+    days = block_result.get("dias") or []
+    if not days:
+        days = [
+            {
+                "data": header.get("date", ""),
+                "diaSemana": header.get("dayName", ""),
+                "refeicoes": [
+                    {
+                        "nome": header.get("mealName", ""),
+                        "cardapios": [
+                            {
+                                "titulo": header.get("title", ""),
+                                "tipos": [],
+                                "sourceRefs": [source_ref(block["header"])],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+
+    for day in days:
+        if not day.get("data") and header.get("date"):
+            day["data"] = header["date"]
+        if not day.get("diaSemana") and header.get("dayName"):
+            day["diaSemana"] = header["dayName"]
+        for meal in day.get("refeicoes") or []:
+            if not meal.get("nome") and header.get("mealName"):
+                meal["nome"] = header["mealName"]
+            for card in meal.get("cardapios") or []:
+                if not card.get("titulo"):
+                    card["titulo"] = header.get("title", "")
+
+    target["dias"].extend(days)
+    target["celulasUsadas"].extend(block_result.get("celulasUsadas") or [])
+    target["celulasIgnoradas"].extend(block_result.get("celulasIgnoradas") or [])
+    target["celulasPendentes"].extend(block_result.get("celulasPendentes") or [])
+    target["_blockConfidences"].append(float(block_result.get("confianca") or 0))
+    target["_aiModel"] = model
+
+
+def call_gemini_by_blocks(raw_workbook, api_key, models, blocks):
+    structured = {
+        "periodos": [],
+        "dias": [],
+        "celulasUsadas": [],
+        "celulasIgnoradas": [],
+        "celulasPendentes": [],
+        "confianca": 0,
+        "_aiModel": None,
+        "_blockConfidences": [],
+    }
+
+    selected_blocks = blocks[:MAX_BLOCKS_PER_IMPORT]
+    block_refs = set()
+    for block in selected_blocks:
+        block_refs.update(block["sourceRefs"])
+
+    def interpret_block(block):
+        prompt = build_block_prompt(block)
+        block_error = None
+        for model in models:
+            try:
+                return block, call_gemini_model(block["raw"], api_key, model, prompt), model, None
+            except RuntimeError as exc:
+                block_error = exc
+                if "HTTP 404" not in str(exc):
+                    break
+        return block, None, None, block_error
+
+    results = []
+    with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_AI_BLOCKS, len(selected_blocks))) as executor:
+        future_map = {
+            executor.submit(interpret_block, block): index
+            for index, block in enumerate(selected_blocks)
+        }
+        for future in as_completed(future_map):
+            index = future_map[future]
+            try:
+                block, block_result, model, block_error = future.result()
+            except Exception as exc:
+                block = selected_blocks[index]
+                block_result = None
+                model = None
+                block_error = exc
+            results.append((index, block, block_result, model, block_error))
+
+    for _, block, block_result, model, block_error in sorted(results, key=lambda item: item[0]):
+        if block_result:
+            merge_block_result(structured, block, block_result, model)
+            continue
+        structured["celulasPendentes"].extend(
+            {"ref": ref, "motivo": f"Falha ao interpretar bloco: {block_error}"}
+            for ref in sorted(block["sourceRefs"])
+        )
+
+    all_refs = {source_ref(cell) for cell in raw_workbook["usefulCells"]}
+    for ref in sorted(all_refs - block_refs):
+        structured["celulasIgnoradas"].append(
+            {"ref": ref, "motivo": "Célula fora dos blocos de cardápio detectados."}
+        )
+
+    confidences = structured.pop("_blockConfidences")
+    structured["confianca"] = sum(confidences) / len(confidences) if confidences else 0
+    return structured
+
+
 def call_gemini(raw_workbook):
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
@@ -294,6 +546,10 @@ def call_gemini(raw_workbook):
     for model_name in [configured_model, *fallback_models]:
         if model_name not in models:
             models.append(model_name)
+
+    blocks = detect_menu_blocks(raw_workbook)
+    if blocks:
+        return call_gemini_by_blocks(raw_workbook, api_key, models, blocks)
 
     last_error = None
     for model in models:
@@ -309,9 +565,9 @@ def call_gemini(raw_workbook):
     return None
 
 
-def call_gemini_model(raw_workbook, api_key, model):
+def call_gemini_model(raw_workbook, api_key, model, prompt=None):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    prompt = build_ai_prompt(raw_workbook)
+    prompt = prompt or build_ai_prompt(raw_workbook)
     payload = {
         "contents": [
             {
