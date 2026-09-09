@@ -30,7 +30,8 @@ PARSER_VERSION = "backend-ai-v1"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_BLOCKS_PER_IMPORT = 80
-MAX_PARALLEL_AI_BLOCKS = 4
+MAX_BLOCKS_PER_AI_BATCH = 6
+MAX_PARALLEL_AI_BATCHES = 2
 WEEKDAY_LABELS = {
     "segunda": "Segunda-feira",
     "terca": "Terça-feira",
@@ -427,6 +428,52 @@ def build_block_prompt(block):
     return prompt
 
 
+def build_batch_raw(raw_workbook, blocks):
+    batch_cells = []
+    sheets = []
+    for index, block in enumerate(blocks, start=1):
+        block_sheet = block["raw"]["sheets"][0]
+        batch_cells.extend(block["raw"]["usefulCells"])
+        sheets.append(
+            {
+                **block_sheet,
+                "index": block_sheet["index"],
+                "name": block_sheet["name"],
+            }
+        )
+
+    return {
+        "fileName": raw_workbook["fileName"],
+        "sha256": raw_workbook["sha256"],
+        "sheetCount": len(sheets),
+        "sheets": sheets,
+        "usefulCells": batch_cells,
+    }
+
+
+def build_batch_prompt(raw_workbook, blocks):
+    batch_raw = build_batch_raw(raw_workbook, blocks)
+    prompt = build_ai_prompt(batch_raw)
+    prompt["instruction"] = (
+        "Este payload contém pequenos recortes de uma planilha de cardápio hospitalar. "
+        "Cada item em workbook.sheets é um bloco de cardápio separado, iniciado por seu próprio cabeçalho. "
+        "Interprete todos os blocos e devolva uma estrutura única em dias > refeições > cardápios > tipos > sugestões. "
+        "Use os cabeçalhos detectados apenas como pontos de partida extraídos da própria planilha. "
+        "Preserve a hierarquia visual dentro de cada bloco: título do cardápio, tipos/subtítulos, itens comuns, sugestões e itens das sugestões. "
+        "Não classifique alimentos por categoria clínica nesta etapa; mantenha o texto como aparece no cardápio. "
+        "Não invente dados e não use conhecimento prévio sobre hospitais. "
+        "Toda célula com texto útil destes recortes deve estar em celulasUsadas, celulasIgnoradas com motivo, ou celulasPendentes."
+    )
+    prompt["detectedHeaders"] = [
+        {
+            "sheet": block["raw"]["sheets"][0]["name"],
+            **block["header"]["headerInfo"],
+        }
+        for block in blocks
+    ]
+    return prompt, batch_raw
+
+
 def merge_block_result(target, block, block_result, model):
     header = block["header"]["headerInfo"]
     days = block_result.get("dias") or []
@@ -487,43 +534,54 @@ def call_gemini_by_blocks(raw_workbook, api_key, models, blocks):
     for block in selected_blocks:
         block_refs.update(block["sourceRefs"])
 
-    def interpret_block(block):
-        prompt = build_block_prompt(block)
-        block_error = None
+    batches = [
+        selected_blocks[index:index + MAX_BLOCKS_PER_AI_BATCH]
+        for index in range(0, len(selected_blocks), MAX_BLOCKS_PER_AI_BATCH)
+    ]
+
+    def interpret_batch(batch):
+        prompt, batch_raw = build_batch_prompt(raw_workbook, batch)
+        batch_error = None
         for model in models:
             try:
-                return block, call_gemini_model(block["raw"], api_key, model, prompt), model, None
+                return batch, call_gemini_model(batch_raw, api_key, model, prompt), model, None
             except RuntimeError as exc:
-                block_error = exc
+                batch_error = exc
                 if "HTTP 404" not in str(exc):
                     break
-        return block, None, None, block_error
+        return batch, None, None, batch_error
 
     results = []
-    with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_AI_BLOCKS, len(selected_blocks))) as executor:
+    with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_AI_BATCHES, len(batches))) as executor:
         future_map = {
-            executor.submit(interpret_block, block): index
-            for index, block in enumerate(selected_blocks)
+            executor.submit(interpret_batch, batch): index
+            for index, batch in enumerate(batches)
         }
         for future in as_completed(future_map):
             index = future_map[future]
             try:
-                block, block_result, model, block_error = future.result()
+                batch, batch_result, model, batch_error = future.result()
             except Exception as exc:
-                block = selected_blocks[index]
-                block_result = None
+                batch = batches[index]
+                batch_result = None
                 model = None
-                block_error = exc
-            results.append((index, block, block_result, model, block_error))
+                batch_error = exc
+            results.append((index, batch, batch_result, model, batch_error))
 
-    for _, block, block_result, model, block_error in sorted(results, key=lambda item: item[0]):
-        if block_result:
-            merge_block_result(structured, block, block_result, model)
+    for _, batch, batch_result, model, batch_error in sorted(results, key=lambda item: item[0]):
+        if batch_result:
+            structured["dias"].extend(batch_result.get("dias") or [])
+            structured["celulasUsadas"].extend(batch_result.get("celulasUsadas") or [])
+            structured["celulasIgnoradas"].extend(batch_result.get("celulasIgnoradas") or [])
+            structured["celulasPendentes"].extend(batch_result.get("celulasPendentes") or [])
+            structured["_blockConfidences"].append(float(batch_result.get("confianca") or 0))
+            structured["_aiModel"] = model
             continue
-        structured["celulasPendentes"].extend(
-            {"ref": ref, "motivo": f"Falha ao interpretar bloco: {block_error}"}
-            for ref in sorted(block["sourceRefs"])
-        )
+        for block in batch:
+            structured["celulasPendentes"].extend(
+                {"ref": ref, "motivo": f"Falha ao interpretar lote: {batch_error}"}
+                for ref in sorted(block["sourceRefs"])
+            )
 
     all_refs = {source_ref(cell) for cell in raw_workbook["usefulCells"]}
     for ref in sorted(all_refs - block_refs):
