@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover - optional outside production
     dict_row = None
 
 
-PARSER_VERSION = "backend-structural-v4"
+PARSER_VERSION = "backend-structural-v5"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_BLOCKS_PER_IMPORT = 80
@@ -150,6 +150,8 @@ def read_workbook(file_bytes, filename):
                     "endColumn": end_col,
                     "rowSpan": end_row - start_row + 1,
                     "columnSpan": end_col - start_col + 1,
+                    "fontBold": bool(cell.font.bold),
+                    "fontSize": float(cell.font.sz or 0),
                     "text": text,
                     "normalizedText": normalize_text(text),
                 }
@@ -638,10 +640,12 @@ def build_source_structure(blocks):
                 "ref": source_ref(cell),
                 "row": cell["row"],
                 "column": cell["column"],
-                "rowSpan": cell["rowSpan"],
-                "columnSpan": cell["columnSpan"],
-                "text": cell["text"],
-            }
+                        "rowSpan": cell["rowSpan"],
+                        "columnSpan": cell["columnSpan"],
+                        "fontBold": cell.get("fontBold", False),
+                        "fontSize": cell.get("fontSize", 0),
+                        "text": cell["text"],
+                    }
             for cell in block["raw"]["usefulCells"]
         ]
         result.append(
@@ -778,12 +782,14 @@ def build_structured_type_from_rows(block):
             active
             and any(header.get("itens") for header in active.get("_suggestionHeaders") or [])
         )
+        has_common_items = bool(active and active.get("itensComuns"))
         return (
             is_wide_cell(cell, block)
             and "\n" not in text
+            and cell.get("fontBold", False)
             and not looks_like_marker(text, "sugest")
             and not is_under_suggestion
-            and (active is None or has_completed_suggestions)
+            and (active is None or has_completed_suggestions or has_common_items)
         )
 
     for row in rows:
