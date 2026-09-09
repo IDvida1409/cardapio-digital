@@ -1236,7 +1236,6 @@ function renderDietGroup(group, open, index = 0) {
         ${renderCommonSections(commonSections)}
         ${group.suggestions.length ? `
           <div class="suggestion-heading">
-            <span class="section-icon" aria-hidden="true">${renderSuggestionIcon()}</span>
             <span>Sugestões</span>
           </div>
           <div class="suggestion-grid">
@@ -1411,9 +1410,9 @@ function renderImportedState(imported, created) {
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
   datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
-  summaryLabel.textContent = imported.serverImport ? "Arquivo processado pelo backend" : "Arquivo lido localmente";
-  summaryTitle.textContent = imported.periodLabel;
-  summaryText.textContent = `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")}. Períodos: ${imported.periods.map((period) => period.label).join("; ")}.`;
+  summaryLabel.textContent = "Importação concluída";
+  summaryTitle.textContent = `${plural(imported.days.length, "dia", "dias")} importados`;
+  summaryText.textContent = `${plural(imported.cardapios.length, "refeição", "refeições")} reconhecidas.`;
   renderSelectedDay();
   renderMasterSummary(created);
   renderCategories();
@@ -1429,7 +1428,7 @@ function renderError(message) {
   dayTabs.innerHTML = "";
   validationPill.textContent = "Importação pendente";
   validationPill.classList.remove("selected-file");
-  summaryLabel.textContent = "Revisão necessária";
+  summaryLabel.textContent = "Atenção";
   summaryTitle.textContent = "Excel não interpretado";
   summaryText.textContent = message;
   mealSectionTitle.textContent = "Cardápio";
@@ -1453,7 +1452,7 @@ function renderEmptyImportState() {
   datePickerLabel.textContent = "Nenhuma semana importada";
   summaryLabel.textContent = "Cardápio";
   summaryTitle.textContent = "Aguardando importação";
-  summaryText.textContent = "Depois do Excel, esta área será preenchida com semanas, dias, sugestões e dietas.";
+  summaryText.textContent = "Importe uma planilha para montar a visão do cardápio.";
   mealSectionTitle.textContent = "Cardápio";
   mealSectionSubtitle.textContent = "Importe o Excel para carregar os dias e liberar Café da Manhã, Almoço e Jantar.";
   mealGrid.hidden = true;
@@ -1559,9 +1558,9 @@ excelInput.addEventListener("change", async () => {
   }
 
   validationPill.textContent = "Enviando Excel";
-  summaryLabel.textContent = "Processamento estrutural";
-  summaryTitle.textContent = "Interpretando planilha";
-  summaryText.textContent = "O backend está lendo o Excel, preservando a estrutura dos blocos e validando as células antes de gravar.";
+  summaryLabel.textContent = "Processando";
+  summaryTitle.textContent = "Lendo planilha";
+  summaryText.textContent = "Aguarde enquanto o cardápio é organizado.";
   mealGrid.hidden = true;
   mealGrid.innerHTML = "";
 

@@ -204,7 +204,7 @@ svg {
 
 .main-area {
   min-width: 0;
-  padding: 0 30px 34px;
+  padding: 0 28px 32px;
 }
 
 .app-header {
@@ -313,20 +313,20 @@ svg {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding: 30px 0 22px;
+  padding: 24px 0 18px;
 }
 
 .page-title h1 {
   margin: 0;
-  font-size: 2.35rem;
+  font-size: 2rem;
   line-height: 1.08;
   letter-spacing: 0;
 }
 
 .page-title p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--muted);
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
 .title-actions,
@@ -342,12 +342,13 @@ svg {
 .date-controls button,
 .view-switch button,
 .category-form button {
-  min-height: 46px;
+  min-height: 40px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 0 18px;
+  padding: 0 15px;
   background: rgba(255, 255, 255, 0.86);
   color: var(--ink);
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
@@ -390,22 +391,22 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 .date-controls button {
-  min-width: 48px;
-  padding: 0 15px;
+  min-width: 40px;
+  padding: 0 12px;
 }
 
 .date-controls svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .date-picker {
-  min-width: 286px;
-  gap: 12px;
+  min-width: 210px;
+  gap: 9px;
   color: var(--muted);
 }
 
@@ -418,7 +419,7 @@ svg {
 }
 
 .view-switch button {
-  min-width: 86px;
+  min-width: 76px;
   border: 0;
   border-right: 1px solid var(--line);
   border-radius: 0;
@@ -443,14 +444,14 @@ svg {
 }
 
 .empty-week {
-  min-height: 78px;
+  min-height: 54px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 18px 28px;
+  padding: 13px 22px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(90deg, var(--green-50), rgba(255, 255, 255, 0.8));
+  background: linear-gradient(90deg, rgba(239, 250, 245, 0.8), rgba(255, 255, 255, 0.88));
 }
 
 .empty-week span,
@@ -459,28 +460,41 @@ svg {
 }
 
 .empty-week span {
+  position: relative;
+  padding-left: 13px;
   color: var(--green-800);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
 }
 
+.empty-week span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.38em;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green-700);
+}
+
 .empty-week strong {
-  margin-top: 5px;
-  font-size: 1.08rem;
+  margin-top: 4px;
+  font-size: 0.98rem;
 }
 
 .empty-week p {
   max-width: 500px;
   margin: 0;
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: 0.86rem;
   line-height: 1.45;
 }
 
 .day-content {
-  padding: 25px 30px 30px;
+  padding: 22px 26px 26px;
 }
 
 .day-heading {
@@ -488,28 +502,28 @@ svg {
   align-items: start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .day-heading h2 {
   margin: 0;
-  font-size: 1.45rem;
+  font-size: 1.28rem;
   letter-spacing: 0;
 }
 
 .day-heading p {
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   color: var(--muted);
-  font-size: 0.96rem;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
 .validation-pill {
   border-radius: 999px;
-  padding: 8px 13px;
+  padding: 7px 11px;
   background: var(--green-100);
   color: var(--green-800);
-  font-size: 0.83rem;
+  font-size: 0.76rem;
   font-weight: 800;
 }
 
@@ -520,17 +534,17 @@ svg {
 
 .day-strip {
   display: flex;
-  gap: 10px;
-  margin: -4px 0 18px;
+  gap: 8px;
+  margin: -2px 0 16px;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
 .day-tab {
-  min-width: 132px;
+  min-width: 112px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 13px;
+  border-radius: 8px;
+  padding: 8px 11px;
   background: #ffffff;
   color: var(--ink);
   text-align: left;
@@ -542,13 +556,13 @@ svg {
 }
 
 .day-tab strong {
-  font-size: 0.9rem;
+  font-size: 0.78rem;
 }
 
 .day-tab span {
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
 }
 
 .day-tab.active {
@@ -580,11 +594,11 @@ svg {
   display: flex;
   flex-direction: column;
   min-height: 220px;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 10px 28px rgba(33, 48, 61, 0.06);
+  box-shadow: 0 12px 32px rgba(33, 48, 61, 0.05);
 }
 
 .meal-card.imported {
@@ -602,23 +616,23 @@ svg {
 .meal-head {
   display: flex;
   align-items: center;
-  gap: 13px;
-  margin-bottom: 12px;
+  gap: 11px;
+  margin-bottom: 10px;
 }
 
 .meal-icon {
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 14px;
   color: #ffffff;
 }
 
 .meal-icon svg {
-  width: 25px;
-  height: 25px;
+  width: 22px;
+  height: 22px;
 }
 
 .breakfast .meal-icon {
@@ -635,13 +649,13 @@ svg {
 
 .meal-head h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .meal-head p {
-  margin: 5px 0 0;
+  margin: 4px 0 0;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.78rem;
   line-height: 1.45;
 }
 
@@ -700,8 +714,8 @@ svg {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
-  gap: 12px;
-  padding: 8px 10px 10px;
+  gap: 10px;
+  padding: 8px;
 }
 
 .diet-block,
@@ -717,19 +731,19 @@ svg {
 }
 
 .diet-block.tone-1 {
-  background: linear-gradient(180deg, #f3fbf8, #ffffff);
+  background: linear-gradient(180deg, #f4fbf8, #ffffff);
 }
 
 .diet-block.tone-2 {
-  background: linear-gradient(180deg, #f6f3ff, #ffffff);
+  background: linear-gradient(180deg, #faf7ff, #ffffff);
 }
 
 .diet-block.tone-3 {
-  background: linear-gradient(180deg, #fff6fa, #ffffff);
+  background: linear-gradient(180deg, #fff8fb, #ffffff);
 }
 
 .diet-block.tone-4 {
-  background: linear-gradient(180deg, #f5f9ff, #ffffff);
+  background: linear-gradient(180deg, #f7fbff, #ffffff);
 }
 
 .diet-block > summary {
@@ -760,21 +774,21 @@ svg {
 }
 
 .summary-toggle {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  background: var(--green-50);
+  background: rgba(9, 129, 95, 0.09);
   color: var(--green-800);
   transition: transform 160ms ease, background 160ms ease;
 }
 
 .summary-toggle svg {
-  width: 15px;
-  height: 15px;
-  stroke-width: 2.4;
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
 }
 
 .diet-block[open] > summary .summary-toggle {
@@ -827,18 +841,18 @@ svg {
 }
 
 .section-icon {
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(9, 129, 95, 0.1);
   color: var(--green-700);
 }
 
 .section-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   stroke-width: 2.2;
 }
 
@@ -987,7 +1001,7 @@ svg {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: linear-gradient(180deg, #ffffff, #f8fbfa);
+  background: #ffffff;
 }
 
 .recognized-block > summary::-webkit-details-marker {
@@ -995,12 +1009,12 @@ svg {
 }
 
 .recognized-block > summary {
-  min-height: 44px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   color: var(--green-800);
   cursor: pointer;
   font-weight: 800;
@@ -1008,7 +1022,7 @@ svg {
 }
 
 .menu-shell > summary {
-  background: rgba(239, 250, 245, 0.68);
+  background: rgba(239, 250, 245, 0.58);
   border-bottom: 1px solid rgba(214, 224, 221, 0.7);
 }
 
@@ -1017,12 +1031,13 @@ svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.9rem;
 }
 
 .recognized-block > summary em {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-style: normal;
   font-weight: 800;
 }
