@@ -13,3 +13,26 @@ services:
       - path: /*
         name: X-Frame-Options
         value: SAMEORIGIN
+  - type: web
+    name: nutrimenu-ai-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nutrimenu-postgres
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        value: https://nutrimenu-cardapio-digital.onrender.com
+
+databases:
+  - name: nutrimenu-postgres
+    databaseName: nutrimenu
+    user: nutrimenu

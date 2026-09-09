@@ -1,1 +1,5 @@
 cardapio-digital-site.tar
+__pycache__/
+*.py[cod]
+*.db
+.env
