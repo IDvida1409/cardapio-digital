@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover - optional outside production
     dict_row = None
 
 
-PARSER_VERSION = "backend-structural-v3"
+PARSER_VERSION = "backend-structural-v4"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_BLOCKS_PER_IMPORT = 80
@@ -1738,6 +1738,15 @@ class Handler(BaseHTTPRequestHandler):
                 "missingCells": 0,
                 "canPersist": record.get("status") == "persisted",
             }
+            if structured:
+                mapped_refs = {
+                    item.get("ref")
+                    for item in structured.get("auditoriaEstrutural") or []
+                    if item.get("ref")
+                }
+                used_refs = set(structured.get("celulasUsadas") or [])
+                validation["structurallyMappedCells"] = len(mapped_refs)
+                validation["structurallyMissingCells"] = len(used_refs - mapped_refs)
             summary = stored_payload.get("summary") if isinstance(stored_payload, dict) else None
             response = {
                 "importId": record["id"],
