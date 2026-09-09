@@ -471,7 +471,45 @@ def build_batch_prompt(raw_workbook, blocks):
         }
         for block in blocks
     ]
+    prompt["completenessContract"] = {
+        "required": True,
+        "rule": (
+            "Para cada célula útil, preserve o ref exato. Não una células de colunas diferentes, "
+            "não copie itens de um bloco para outro e não resuma listas. Uma célula só pode ser "
+            "usada se o texto dela aparecer literalmente na saída; caso contrário, marque-a como "
+            "ignorada com motivo ou pendente."
+        ),
+        "sourceCellCount": len(batch_raw["usefulCells"]),
+        "sourceRefs": [source_ref(cell) for cell in batch_raw["usefulCells"]],
+    }
     return prompt, batch_raw
+
+
+def build_source_structure(blocks):
+    """Keep an exact, model-independent copy of every detected menu block."""
+    result = []
+    for block in blocks:
+        header = block["header"]["headerInfo"]
+        cells = [
+            {
+                "ref": source_ref(cell),
+                "row": cell["row"],
+                "column": cell["column"],
+                "rowSpan": cell["rowSpan"],
+                "columnSpan": cell["columnSpan"],
+                "text": cell["text"],
+            }
+            for cell in block["raw"]["usefulCells"]
+        ]
+        result.append(
+            {
+                "sheet": block["raw"]["sheets"][0]["name"],
+                "header": header,
+                "sourceRefs": [cell["ref"] for cell in cells],
+                "cells": cells,
+            }
+        )
+    return result
 
 
 def merge_block_result(target, block, block_result, model):
@@ -524,6 +562,7 @@ def call_gemini_by_blocks(raw_workbook, api_key, models, blocks):
         "celulasUsadas": [],
         "celulasIgnoradas": [],
         "celulasPendentes": [],
+        "blocosFonte": build_source_structure(blocks[:MAX_BLOCKS_PER_IMPORT]),
         "confianca": 0,
         "_aiModel": None,
         "_blockConfidences": [],
