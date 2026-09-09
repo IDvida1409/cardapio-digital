@@ -146,7 +146,7 @@
       processos: new Map(),
       dietas: new Map(),
       warnings: [],
-      parserVersion: "structured-v4"
+      parserVersion: "structured-v6"
     };
   }
 
@@ -423,10 +423,12 @@
       .map((cell, index, sorted) => {
         const nextStart = sorted[index + 1] ? sorted[index + 1].startCol - 1 : maxColumn;
         const explicitEnd = cell.endCol || cell.startCol || cell.colNumber;
+        const isMergedRange = explicitEnd > (cell.startCol || cell.colNumber);
         return {
           ...cell,
           startCol: cell.startCol || cell.colNumber,
-          endCol: Math.max(explicitEnd, nextStart || explicitEnd)
+          // Uma mesclagem ja define o limite real do bloco.
+          endCol: isMergedRange ? explicitEnd : Math.max(explicitEnd, nextStart || explicitEnd)
         };
       });
   }
@@ -465,6 +467,22 @@
       title: section.title,
       items: section.items
     }));
+  }
+
+  function isSuggestionTitle(title) {
+    return /^sugestao\s+\d+$/i.test(core.normalizeText(title));
+  }
+
+  function mergeCommonSections(entries) {
+    const sections = new Map();
+    entries.forEach((entry) => {
+      (entry.sections || []).forEach((section) => {
+        const current = sections.get(section.title) || { title: section.title, items: [], keys: new Set() };
+        (section.items || []).forEach((item) => core.addUnique(current.items, current.keys, item));
+        sections.set(section.title, current);
+      });
+    });
+    return finalizeSectionMap(sections);
   }
 
   function addToMasterMaps(imported, clean, components, category, source) {
@@ -607,9 +625,8 @@
       });
     });
 
-    const normalizedGroups = Array.from(groups.values()).map((group) => ({
-      title: group.title,
-      suggestions: Array.from(group.suggestions.values()).map((suggestion) => ({
+    const normalizedGroups = Array.from(groups.values()).map((group) => {
+      const entries = Array.from(group.suggestions.values()).map((suggestion) => ({
         title: suggestion.title,
         itemCount: suggestion.itemCount,
         dishes: suggestion.dishes.map((dish) => ({
@@ -618,12 +635,21 @@
           sections: dish.sections
         })),
         sections: finalizeSectionMap(suggestion.sections)
-      }))
-    })).filter((group) => group.suggestions.length);
+      }));
+      const commonEntries = entries.filter((entry) => !isSuggestionTitle(entry.title));
+      const suggestions = entries.filter((entry) => isSuggestionTitle(entry.title));
+
+      return {
+        title: group.title,
+        commonSections: mergeCommonSections(commonEntries),
+        suggestions,
+        itemCount: entries.reduce((total, entry) => total + entry.itemCount, 0)
+      };
+    }).filter((group) => group.commonSections.length || group.suggestions.length);
 
     const normalizedSections = finalizeSectionMap(flatSections);
     const itemCount = normalizedGroups.reduce(
-      (total, group) => total + group.suggestions.reduce((groupTotal, suggestion) => groupTotal + suggestion.itemCount, 0),
+      (total, group) => total + group.itemCount,
       0
     );
 

@@ -27,11 +27,11 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path><path d="M10 20v-5h4v5"></path></svg>
             Início
           </a>
-          <a class="active" href="#cardapio">
+          <a class="active has-subnav" href="#cardapio" id="cardapioNav" aria-expanded="false" aria-controls="mealSelector">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v18"></path><path d="M11 3v7a4 4 0 0 1-8 0V3"></path><path d="M17 3v18"></path><path d="M17 3c2.4 1.4 3.8 4 3.8 7.5 0 3.4-1.4 5.8-3.8 7"></path></svg>
             Cardápio
           </a>
-          <div class="meal-subnav" id="mealSelector" aria-label="Selecionar refeição"></div>
+          <div class="meal-subnav" id="mealSelector" aria-label="Selecionar refeição" hidden></div>
           <a href="#alimentos">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12c0-4.5 3-8 7-8s7 3.5 7 8-3 8-7 8-7-3.5-7-8Z"></path><path d="M9 13.2c1.6 1.3 4.4 1.3 6 0"></path><path d="M8 9h.1"></path><path d="M16 9h.1"></path></svg>
             Alimentos
@@ -172,10 +172,10 @@
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="normalizer.js"></script>
     <script src="menu-reader.js"></script>
-    <script src="menu-parser.js"></script>
-    <script src="menu-validator.js"></script>
+    <script src="menu-parser.js?v=structured-v6"></script>
+    <script src="menu-validator.js?v=structured-v6"></script>
     <script src="menu-persistence.js"></script>
-    <script src="menu-importer.js"></script>
-    <script src="app.js"></script>
+    <script src="menu-importer.js?v=structured-v6"></script>
+    <script src="app.js?v=structured-v6"></script>
   </body>
 </html>

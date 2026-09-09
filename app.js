@@ -1199,7 +1199,7 @@ function renderMenuBlock(menu) {
   }
 
   const itemCount = groups.reduce((total, group) => (
-    total + group.suggestions.reduce((groupTotal, suggestion) => groupTotal + suggestion.itemCount, 0)
+    total + (group.itemCount || group.suggestions.reduce((groupTotal, suggestion) => groupTotal + suggestion.itemCount, 0))
   ), 0);
 
   return `
@@ -1216,19 +1216,44 @@ function renderMenuBlock(menu) {
 }
 
 function renderDietGroup(group, open) {
-  const itemCount = group.suggestions.reduce((total, suggestion) => total + suggestion.itemCount, 0);
+  const itemCount = group.itemCount || group.suggestions.reduce((total, suggestion) => total + suggestion.itemCount, 0);
+  const commonSections = Array.isArray(group.commonSections) ? group.commonSections : [];
+  const summaryLabel = group.suggestions.length
+    ? plural(group.suggestions.length, "sugestão", "sugestões")
+    : "Itens comuns";
 
   return `
     <details class="diet-block" ${open ? "open" : ""}>
       <summary>
         <span class="summary-plus" aria-hidden="true"></span>
         <span>${escapeHtml(group.title)}</span>
-        <em>${plural(group.suggestions.length, "sugestão", "sugestões")} · ${plural(itemCount, "item", "itens")}</em>
+        <em>${summaryLabel} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
-      <div class="suggestion-grid">
-        ${group.suggestions.map((suggestion) => renderSuggestionCard(suggestion)).join("")}
+      <div class="diet-content">
+        ${renderCommonSections(commonSections)}
+        ${group.suggestions.length ? `
+          <div class="suggestion-heading">Sugestões</div>
+          <div class="suggestion-grid">
+            ${group.suggestions.map((suggestion) => renderSuggestionCard(suggestion)).join("")}
+          </div>
+        ` : ""}
       </div>
     </details>
+  `;
+}
+
+function renderCommonSections(sections) {
+  if (!sections.length) return "";
+
+  return `
+    <div class="common-menu">
+      ${sections.map((section) => `
+        <div class="common-section">
+          <strong>${escapeHtml(section.title)}</strong>
+          <span>${escapeHtml((section.items || []).join(" · "))}</span>
+        </div>
+      `).join("")}
+    </div>
   `;
 }
 

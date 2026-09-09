@@ -762,17 +762,62 @@ svg {
   text-align: right;
 }
 
-.suggestion-grid {
+.diet-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
   padding: 0 12px 12px;
+}
+
+.common-menu {
+  display: grid;
+  gap: 0;
+  padding: 2px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.common-section {
+  display: grid;
+  grid-template-columns: minmax(105px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(17, 116, 85, 0.1);
+}
+
+.common-section:last-child {
+  border-bottom: 0;
+}
+
+.common-section strong,
+.suggestion-heading {
+  color: var(--green-800);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.common-section span {
+  color: #283240;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.suggestion-heading {
+  padding-top: 2px;
+}
+
+.suggestion-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
 }
 
 .suggestion-card {
   display: grid;
   gap: 10px;
-  padding: 12px;
+  padding: 10px 0 0;
   background: #ffffff;
 }
 
@@ -818,10 +863,10 @@ svg {
 .dish-card {
   display: grid;
   gap: 10px;
-  border: 1px solid rgba(17, 116, 85, 0.14);
-  border-radius: 10px;
-  padding: 12px;
-  background: linear-gradient(180deg, #ffffff, #f8fbfa);
+  border-top: 1px solid rgba(17, 116, 85, 0.12);
+  border-radius: 0;
+  padding: 8px 0 0;
+  background: transparent;
 }
 
 .dish-card > strong {
@@ -832,7 +877,7 @@ svg {
 
 .dish-line {
   align-content: start;
-  min-height: 82px;
+  min-height: 0;
 }
 
 .dish-line small {
