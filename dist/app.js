@@ -160,6 +160,9 @@ const excelInput = document.getElementById("excelInput");
 const clearLocalData = document.getElementById("clearLocalData");
 const validationPill = document.querySelector(".validation-pill");
 const datePickerLabel = document.getElementById("datePickerLabel");
+const periodPrev = document.getElementById("periodPrev");
+const periodNext = document.getElementById("periodNext");
+const periodPicker = document.getElementById("periodPicker");
 const summaryLabel = document.getElementById("summaryLabel");
 const summaryTitle = document.getElementById("summaryTitle");
 const summaryText = document.getElementById("summaryText");
@@ -177,6 +180,7 @@ const closeMasterBase = document.getElementById("closeMasterBase");
 
 let currentImported = null;
 let selectedDayKey = "";
+let selectedPeriodKey = "";
 let selectedMealKey = "";
 let mealSelectorExpanded = false;
 
@@ -939,6 +943,155 @@ function buildSheetPeriodDescriptions(days) {
   });
 }
 
+function periodKey(period, index) {
+  return normalizeText(`${period.sheetIndex || ""}-${period.sheetName || ""}-${period.label || period.period || index}`);
+}
+
+function sameSheetPeriod(day, period) {
+  const daySheet = normalizeText(day.sheetName || "");
+  const periodSheet = normalizeText(period.sheetName || "");
+  if (period.sheetIndex && day.sheetIndex && Number(period.sheetIndex) === Number(day.sheetIndex)) return true;
+  return Boolean(daySheet && periodSheet && daySheet === periodSheet);
+}
+
+function extractPeriodRange(period) {
+  const text = [period.period, period.label, period.inicio, period.fim].filter(Boolean).join(" a ");
+  const matches = Array.from(String(text).matchAll(/(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?/g));
+  if (!matches.length) return { start: null, end: null };
+
+  const toParts = (match) => ({
+    day: Number(match[1]),
+    month: Number(match[2]),
+    year: normalizeYear(match[3])
+  });
+
+  return {
+    start: toParts(matches[0]),
+    end: toParts(matches[matches.length - 1])
+  };
+}
+
+function dayInPeriodRange(day, period) {
+  const dayParts = day.dateParts || parseDateParts(day.dateText);
+  if (!dayParts || !period.start || !period.end) return false;
+
+  const value = (dayParts.month * 100) + dayParts.day;
+  const start = (period.start.month * 100) + period.start.day;
+  const end = (period.end.month * 100) + period.end.day;
+
+  if (period.start.year && period.end.year && dayParts.year) {
+    const fullValue = (dayParts.year * 10000) + value;
+    const fullStart = (period.start.year * 10000) + start;
+    const fullEnd = (period.end.year * 10000) + end;
+    return fullValue >= fullStart && fullValue <= fullEnd;
+  }
+
+  return value >= start && value <= end;
+}
+
+function buildVisualPeriods(imported) {
+  const days = imported && Array.isArray(imported.days) ? imported.days : [];
+  if (!days.length) return [];
+
+  const rawPeriods = Array.isArray(imported.periods) ? imported.periods : [];
+  const mappedPeriods = rawPeriods.map((period, index) => {
+    const range = extractPeriodRange(period);
+    return {
+      ...period,
+      ...range,
+      key: periodKey(period, index),
+      label: period.label || period.period || `Período ${index + 1}`
+    };
+  });
+
+  const periodsWithDays = mappedPeriods.map((period) => ({
+    ...period,
+    days: days.filter((day) => sameSheetPeriod(day, period) || dayInPeriodRange(day, period))
+  })).filter((period) => period.days.length);
+
+  if (periodsWithDays.length) return periodsWithDays;
+
+  const bySheet = new Map();
+  days.forEach((day) => {
+    const key = normalizeText(`${day.sheetIndex || ""}-${day.sheetName || "periodo"}`);
+    const current = bySheet.get(key) || { key, sheetName: day.sheetName || "Período", days: [] };
+    current.days.push(day);
+    bySheet.set(key, current);
+  });
+
+  return Array.from(bySheet.values()).map((period, index) => {
+    const datedDays = period.days.filter((day) => day.dateText);
+    const first = datedDays[0];
+    const last = datedDays[datedDays.length - 1];
+    const label = first && last ? `${first.dateText} a ${last.dateText}` : `Período ${index + 1}`;
+    return { ...period, label, period: label };
+  });
+}
+
+function getVisualPeriods() {
+  return buildVisualPeriods(currentImported);
+}
+
+function getSelectedPeriod() {
+  const periods = getVisualPeriods();
+  if (!periods.length) return null;
+  return periods.find((period) => period.key === selectedPeriodKey) || periods[0];
+}
+
+function getVisibleDays() {
+  const period = getSelectedPeriod();
+  return period ? period.days : (currentImported && currentImported.days) || [];
+}
+
+function periodsOverlap(left, right) {
+  if (!left || !right || !left.start || !left.end || !right.start || !right.end) return false;
+  const leftStart = (left.start.month * 100) + left.start.day;
+  const leftEnd = (left.end.month * 100) + left.end.day;
+  const rightStart = (right.start.month * 100) + right.start.day;
+  const rightEnd = (right.end.month * 100) + right.end.day;
+  return leftStart <= rightEnd && rightStart <= leftEnd;
+}
+
+function selectInitialPeriod(imported) {
+  const periods = buildVisualPeriods(imported);
+  if (!periods.length) return { periodKey: "", dayKey: "" };
+
+  const fileRange = extractPeriodRange({ label: imported.fileName || "" });
+  const periodFromFile = periods.find((period) => periodsOverlap(fileRange, period));
+  const period = periodFromFile || periods[0];
+  const day = period.days.find((item) => item.dateText) || period.days[0] || null;
+
+  return {
+    periodKey: period.key,
+    dayKey: day ? day.key : ""
+  };
+}
+
+function renderPeriodControls() {
+  const periods = getVisualPeriods();
+  const period = getSelectedPeriod();
+  const index = period ? periods.findIndex((item) => item.key === period.key) : -1;
+  const hasMultiplePeriods = periods.length > 1;
+
+  if (datePickerLabel) {
+    datePickerLabel.textContent = period ? period.label : "Nenhuma semana importada";
+  }
+  if (periodPrev) periodPrev.disabled = !hasMultiplePeriods || index <= 0;
+  if (periodNext) periodNext.disabled = !hasMultiplePeriods || index < 0 || index >= periods.length - 1;
+  if (periodPicker) periodPicker.disabled = !hasMultiplePeriods;
+}
+
+function selectPeriodByOffset(offset) {
+  const periods = getVisualPeriods();
+  if (!periods.length) return;
+  const currentIndex = Math.max(0, periods.findIndex((period) => period.key === selectedPeriodKey));
+  const nextIndex = Math.min(periods.length - 1, Math.max(0, currentIndex + offset));
+  const period = periods[nextIndex];
+  selectedPeriodKey = period.key;
+  selectedDayKey = (period.days.find((day) => day.dateText) || period.days[0] || {}).key || "";
+  renderSelectedDay();
+}
+
 async function parseWorkbook(file) {
   if (!window.ExcelJS) {
     throw new Error("A biblioteca de leitura do Excel não carregou. Recarregue a página e tente novamente.");
@@ -1045,14 +1198,15 @@ function mergeImportedData(imported) {
 }
 
 function renderDayTabs(imported) {
-  if (!imported.days.length) {
+  const days = getVisibleDays();
+  if (!days.length) {
     dayTabs.hidden = true;
     dayTabs.innerHTML = "";
     return;
   }
 
   dayTabs.hidden = false;
-  dayTabs.innerHTML = imported.days.map((day) => `
+  dayTabs.innerHTML = days.map((day) => `
     <button class="day-tab ${day.key === selectedDayKey ? "active" : ""}" type="button" data-day-key="${escapeHtml(day.key)}">
       <strong>${escapeHtml(day.title)}</strong>
       <span>${escapeHtml(day.subtitle)}</span>
@@ -1064,8 +1218,9 @@ function renderDayTabs(imported) {
 }
 
 function getSelectedDay() {
-  if (!currentImported || !currentImported.days.length) return null;
-  return currentImported.days.find((item) => item.key === selectedDayKey) || currentImported.days[0];
+  const days = getVisibleDays();
+  if (!currentImported || !days.length) return null;
+  return days.find((item) => item.key === selectedDayKey) || days[0];
 }
 
 function getSelectedMealDefinition() {
@@ -1101,9 +1256,11 @@ function renderMealSelector(day = null) {
 function renderSelectedDay() {
   if (!currentImported || !currentImported.days.length) return;
   const day = getSelectedDay();
+  if (!day) return;
   selectedDayKey = day.key;
   const dateLabel = day.dateText ? `Dia ${day.dateText}` : day.subtitle;
   const selectedMeal = getSelectedMealDefinition();
+  renderPeriodControls();
 
   mealSectionTitle.textContent = `Cardápio de ${day.title}`;
   if (!selectedMeal) {
@@ -1365,12 +1522,13 @@ function renderReview(imported, created) {
 
 function renderImportedState(imported, created) {
   currentImported = imported;
-  selectedDayKey = (imported.days.find((day) => day.dateText && day.dateText.startsWith("24/")) || imported.days.find((day) => day.dateText) || imported.days[0] || {}).key || "";
+  const initialSelection = selectInitialPeriod(imported);
+  selectedPeriodKey = initialSelection.periodKey;
+  selectedDayKey = initialSelection.dayKey;
   selectedMealKey = "";
   setMealSelectorExpanded(false);
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
-  datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
   summaryLabel.textContent = "Importação concluída";
   summaryTitle.textContent = `${plural(imported.days.length, "dia", "dias")} importados`;
   summaryText.textContent = `${plural(imported.cardapios.length, "refeição", "refeições")} reconhecidas.`;
@@ -1383,12 +1541,14 @@ function renderImportedState(imported, created) {
 function renderError(message) {
   currentImported = null;
   selectedDayKey = "";
+  selectedPeriodKey = "";
   selectedMealKey = "";
   setMealSelectorExpanded(false);
   dayTabs.hidden = true;
   dayTabs.innerHTML = "";
   validationPill.textContent = "Importação pendente";
   validationPill.classList.remove("selected-file");
+  renderPeriodControls();
   summaryLabel.textContent = "Atenção";
   summaryTitle.textContent = "Excel não interpretado";
   summaryText.textContent = message;
@@ -1402,6 +1562,7 @@ function renderError(message) {
 function renderEmptyImportState() {
   currentImported = null;
   selectedDayKey = "";
+  selectedPeriodKey = "";
   selectedMealKey = "";
   setMealSelectorExpanded(false);
   dayTabs.hidden = true;
@@ -1410,7 +1571,7 @@ function renderEmptyImportState() {
   reviewList.innerHTML = "";
   validationPill.textContent = "Aguardando Excel";
   validationPill.classList.remove("selected-file");
-  datePickerLabel.textContent = "Nenhuma semana importada";
+  renderPeriodControls();
   summaryLabel.textContent = "Cardápio";
   summaryTitle.textContent = "Aguardando importação";
   summaryText.textContent = "Importe uma planilha para montar a visão do cardápio.";
@@ -1445,6 +1606,14 @@ dayTabs.addEventListener("click", (event) => {
   selectedDayKey = button.dataset.dayKey;
   renderSelectedDay();
 });
+
+if (periodPrev) {
+  periodPrev.addEventListener("click", () => selectPeriodByOffset(-1));
+}
+
+if (periodNext) {
+  periodNext.addEventListener("click", () => selectPeriodByOffset(1));
+}
 
 if (mealSelector) {
   mealSelector.addEventListener("click", (event) => {

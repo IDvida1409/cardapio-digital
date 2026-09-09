@@ -74,8 +74,9 @@
     const result = payload.result || {};
     const menus = [];
     const days = [];
-    const periods = (result.periodos || []).map((period) => ({
-      sheetName: period.titulo || "Período",
+    const periods = (result.periodos || []).map((period, periodIndex) => ({
+      sheetName: period.sourceSheet || period.titulo || "Período",
+      sheetIndex: period.sourceSheetIndex || periodIndex + 1,
       period: [period.inicio, period.fim].filter(Boolean).join(" a ") || period.titulo || "Período",
       label: [period.inicio, period.fim].filter(Boolean).join(" a ") || period.titulo || "Período"
     }));
@@ -83,6 +84,8 @@
     (result.dias || []).forEach((day, dayIndex) => {
       const formattedDate = dateText(day.data);
       const parts = datePartsFromText(day.data);
+      const sourceSheet = day.sourceSheet || "Backend IA";
+      const sourceSheetIndex = day.sourceSheetIndex || dayIndex + 1;
       const key = core.normalizeText(`${formattedDate || "dia"}-${dayIndex}`);
       const dayMeals = {};
 
@@ -94,8 +97,8 @@
           const menu = {
             key: core.normalizeText(`${key}-${keyMeal}-${cardIndex}-${card.titulo || ""}`),
             name: titleCase(card.titulo || `${meal.nome || "Refeição"} ${cardIndex + 1}`),
-            sheetName: "Backend IA",
-            sheetIndex: dayIndex + 1,
+            sheetName: sourceSheet,
+            sheetIndex: sourceSheetIndex,
             rowNumber: cardIndex + 1,
             cardNumber: cardIndex + 1,
             mealKey: keyMeal,
@@ -122,8 +125,8 @@
         dateText: formattedDate,
         dayName: titleCase(day.diaSemana || ""),
         cardNumber: dayIndex + 1,
-        sheetName: "Backend IA",
-        sheetIndex: dayIndex + 1,
+        sheetName: sourceSheet,
+        sheetIndex: sourceSheetIndex,
         sort: parts ? Number(`${parts.year || 0}${String(parts.month).padStart(2, "0")}${String(parts.day).padStart(2, "0")}`) : dayIndex,
         meals: dayMeals,
         title: titleCase(day.diaSemana || (formattedDate ? `Dia ${formattedDate.split("/")[0]}` : `Dia ${dayIndex + 1}`)),

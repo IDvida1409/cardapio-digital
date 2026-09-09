@@ -402,7 +402,15 @@ def rebuild_periods_from_days(days, fallback_periods):
         if not key:
             continue
         sheet_key = day.get("sourceSheetIndex") or day.get("sourceSheet") or len(grouped)
-        grouped.setdefault(sheet_key, {"title": day.get("sourceSheet", "Período"), "dates": []})
+        grouped.setdefault(
+            sheet_key,
+            {
+                "title": day.get("sourceSheet", "Período"),
+                "sourceSheet": day.get("sourceSheet", "Período"),
+                "sourceSheetIndex": day.get("sourceSheetIndex"),
+                "dates": [],
+            },
+        )
         grouped[sheet_key]["dates"].append((key, date_text))
 
     if not grouped:
@@ -416,6 +424,8 @@ def rebuild_periods_from_days(days, fallback_periods):
                 "titulo": group["title"],
                 "inicio": unique_dates[0][1],
                 "fim": unique_dates[-1][1],
+                "sourceSheet": group.get("sourceSheet"),
+                "sourceSheetIndex": group.get("sourceSheetIndex"),
             }
         )
     return periods
@@ -882,6 +892,8 @@ def build_structured_from_blocks(raw_workbook, blocks):
                 "titulo": period["title"],
                 "inicio": date_text_from_date(period["startDate"]),
                 "fim": date_text_from_date(period["endDate"]),
+                "sourceSheet": block["sourceSheet"],
+                "sourceSheetIndex": block["sourceSheetIndex"],
             }
 
     structured = {
