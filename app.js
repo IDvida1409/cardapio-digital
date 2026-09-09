@@ -1382,7 +1382,7 @@ function renderImportedState(imported, created) {
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
   datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
-  summaryLabel.textContent = imported.serverImport ? "Arquivo processado pela IA" : "Arquivo lido localmente";
+  summaryLabel.textContent = imported.serverImport ? "Arquivo processado pelo backend" : "Arquivo lido localmente";
   summaryTitle.textContent = imported.periodLabel;
   summaryText.textContent = `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")}. Períodos: ${imported.periods.map((period) => period.label).join("; ")}.`;
   renderSelectedDay();
@@ -1530,9 +1530,9 @@ excelInput.addEventListener("change", async () => {
   }
 
   validationPill.textContent = "Enviando Excel";
-  summaryLabel.textContent = "Processamento com IA";
+  summaryLabel.textContent = "Processamento estrutural";
   summaryTitle.textContent = "Interpretando planilha";
-  summaryText.textContent = "O backend está lendo o Excel, chamando a IA e validando as células antes de gravar.";
+  summaryText.textContent = "O backend está lendo o Excel, preservando a estrutura dos blocos e validando as células antes de gravar.";
   mealGrid.hidden = true;
   mealGrid.innerHTML = "";
 
@@ -1550,4 +1550,18 @@ excelInput.addEventListener("change", async () => {
   }
 });
 
-renderEmptyImportState();
+async function loadInitialBackendImport() {
+  renderEmptyImportState();
+  const loader = window.NutriMenuImporter && window.NutriMenuImporter.loadLatestImport;
+  if (!loader) return;
+
+  try {
+    const imported = await loader();
+    if (!imported || currentImported) return;
+    renderImportedState(imported, { alimentos: 0, preparacoes: 0, processos: 0, dietas: 0, cardapios: 0 });
+  } catch (error) {
+    // Keep the empty state when there is no backend import or the service is waking up.
+  }
+}
+
+loadInitialBackendImport();

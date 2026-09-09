@@ -205,6 +205,15 @@
     throw new Error("A importação ainda está processando. Tente consultar novamente em alguns instantes.");
   }
 
+  async function loadLatestImport() {
+    const response = await fetch(`${apiUrl()}/api/import-cardapio/latest?includeResult=1`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.result) {
+      return null;
+    }
+    return adaptAiImport({ name: payload.summary?.fileName || "Última importação" }, payload);
+  }
+
   async function parseWorkbook(file) {
     if (window.NUTRIMENU_USE_LOCAL_IMPORTER !== true) {
       return parseWorkbookWithBackend(file);
@@ -228,6 +237,7 @@
     parseWorkbook,
     parseWorkbookWithBackend,
     pollBackendImport,
-    version: "backend-ai-v1"
+    loadLatestImport,
+    version: "backend-structural-v2"
   };
 })(window);
