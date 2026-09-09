@@ -1229,7 +1229,7 @@ function renderDietGroup(group, open, index = 0) {
         <span class="summary-toggle" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
         </span>
-        <span>${escapeHtml(group.title)}</span>
+        <span>${escapeHtml(formatMenuText(group.title))}</span>
         <em>${summaryLabel} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
       <div class="diet-content">
@@ -1256,11 +1256,34 @@ function renderCommonSections(sections) {
       ${sections.map((section) => `
         <div class="common-section" title="${escapeHtml(section.title)}">
           <span class="section-icon" aria-hidden="true">${renderSectionIcon(section.title)}</span>
-          <span>${escapeHtml((section.items || []).join(" · "))}</span>
+          <span>${escapeHtml((section.items || []).map(formatMenuText).join(" · "))}</span>
         </div>
       `).join("")}
     </div>
   `;
+}
+
+function formatMenuText(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+
+  const letters = text.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  const uppercaseLetters = letters.replace(/[^A-ZÀ-Ý]/g, "");
+  const isMostlyUppercase = letters.length >= 4 && uppercaseLetters.length / letters.length > 0.72;
+  if (!isMostlyUppercase) return text;
+
+  const smallWords = new Set(["a", "as", "ao", "aos", "com", "da", "das", "de", "do", "dos", "e", "em", "na", "no", "para", "por", "sem"]);
+  const acronyms = new Set(["DBTM", "HS"]);
+
+  return text
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|[\s/:|-])([a-zà-ÿ0-9]+)/gi, (match, prefix, word) => {
+      const upper = word.toLocaleUpperCase("pt-BR");
+      if (acronyms.has(upper)) return `${prefix}${upper}`;
+      if (smallWords.has(word) && prefix.trim()) return `${prefix}${word}`;
+      return `${prefix}${word.charAt(0).toLocaleUpperCase("pt-BR")}${word.slice(1)}`;
+    })
+    .replace(/\s+\|\s+/g, " | ");
 }
 
 function renderSectionIcon(title) {
@@ -1300,7 +1323,7 @@ function renderSuggestionCard(suggestion) {
   return `
     <article class="suggestion-card">
       <header class="suggestion-card-header">
-        <strong>${escapeHtml(suggestion.title)}</strong>
+        <strong>${escapeHtml(formatMenuText(suggestion.title))}</strong>
         <span>${escapeHtml(countLabel)}</span>
       </header>
       ${renderSuggestionItems(items)}
@@ -1312,12 +1335,12 @@ function renderSuggestionItems(items) {
   const cleanItems = (items || []).map((item) => String(item || "").trim()).filter(Boolean);
   if (!cleanItems.length) return "";
 
-  const visibleItems = cleanItems.slice(0, 6);
-  const hiddenItems = cleanItems.slice(6);
+  const visibleItems = cleanItems.slice(0, 4);
+  const hiddenItems = cleanItems.slice(4);
 
   const list = (values) => `
     <ul class="suggestion-items">
-      ${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      ${values.map((item) => `<li>${escapeHtml(formatMenuText(item))}</li>`).join("")}
     </ul>
   `;
 
