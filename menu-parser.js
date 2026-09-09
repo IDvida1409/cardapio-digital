@@ -261,6 +261,28 @@
     };
   }
 
+  function isOperationalNote(text) {
+    const normalized = core.normalizeText(text);
+    return normalized.startsWith("opcoes de escolha")
+      || normalized.startsWith("opcao de escolha")
+      || normalized.startsWith("producao diaria");
+  }
+
+  function expandPrefixedItems(prefixed) {
+    if (!prefixed || !prefixed.itemText) return [];
+
+    const normalizedItem = String(prefixed.itemText)
+      .replace(/\s*\/\s*sem\s+leite\s*\/?\s*dm\s*:\s*/ig, "\n")
+      .replace(/\s*\/\s*sem\s+leite\s+dm\s*:\s*/ig, "\n")
+      .replace(/\s*\/\s*sem\s+leite\s*:\s*/ig, "\n")
+      .replace(/\s*\/\s*dm\s*:\s*/ig, "\n")
+      .replace(/\s+dm\s*:\s*/ig, "\n");
+
+    return core.splitCellSegments(normalizedItem)
+      .map((item) => core.cleanItemText(item))
+      .filter((item) => item && !isIgnorableCandidate(item));
+  }
+
   function looksLikeDietHeader(text) {
     const normalized = core.normalizeText(text);
     if (!normalized || normalized.length > 180) return false;
@@ -583,6 +605,8 @@
       const ranges = getCellRanges(row.cells, maxColumn);
 
       ranges.forEach((cell) => {
+        if (isOperationalNote(cell.text)) return;
+
         core.splitCellSegments(cell.text).forEach((segment) => {
           const normalized = core.normalizeText(segment);
           const suggestion = detectSuggestion(normalized);
@@ -600,6 +624,8 @@
       });
 
       ranges.forEach((cell) => {
+        if (isOperationalNote(cell.text)) return;
+
         const groupContext = getColumnContext(groupByColumn, cell.colNumber, "Cardápio geral", cell.startCol, cell.endCol);
         const suggestionContext = getColumnContext(suggestionByColumn, cell.colNumber, "Itens gerais", cell.startCol, cell.endCol);
 
@@ -614,13 +640,15 @@
           }
 
           const prefixed = getPrefixedCategory(segment);
-          const itemText = prefixed && prefixed.itemText ? prefixed.itemText : segment;
+          const itemTexts = prefixed && prefixed.itemText ? expandPrefixedItems(prefixed) : [segment];
           if (isIgnorableCandidate(segment) && !prefixed) return;
-          if (isIgnorableCandidate(itemText)) return;
           const itemSuggestionContext = prefixed
             ? createColumnContext(prefixed.title, cell.startCol, cell.endCol)
             : suggestionContext;
-          addDish(groupContext, itemSuggestionContext, itemText, prefixed ? prefixed.category : "");
+          itemTexts.forEach((itemText) => {
+            if (isIgnorableCandidate(itemText)) return;
+            addDish(groupContext, itemSuggestionContext, itemText, prefixed ? prefixed.category : "");
+          });
         });
       });
     });

@@ -20,17 +20,22 @@ for (const file of ["normalizer.js", "menu-parser.js"]) {
 
 const rawWorkbook = JSON.parse(fs.readFileSync(rawPath, "utf8"));
 const imported = context.window.NutriMenuParser.parseWorkbookData(rawWorkbook);
-const day = imported.days.find((item) => item.dateText === "24/08");
-const almoco = day?.meals?.almoco?.[0];
+const dateFilter = process.argv[3] || "24/08";
+const mealFilter = process.argv[4] || "almoco";
+const groupFilter = new RegExp(process.argv[5] || "fase 1|fase 2|infantil|hipossodica|cremosa", "i");
+const day = imported.days.find((item) => item.dateText === dateFilter);
+const almoco = day?.meals?.[mealFilter]?.[0];
 
 if (!almoco) {
-  console.log(JSON.stringify({ error: "Almoço 24/08 não encontrado" }, null, 2));
+  console.log(JSON.stringify({
+    error: `${mealFilter} ${dateFilter} não encontrado`,
+    availableDays: imported.days.map((item) => item.dateText)
+  }, null, 2));
   process.exit(1);
 }
 
 const importantGroups = almoco.groups
-  .filter((group) => /fase 1|fase 2|infantil|hipossodica/i.test(group.title))
-  .slice(0, 6)
+  .filter((group) => groupFilter.test(group.title))
   .map((group) => ({
     title: group.title,
     itemCount: group.itemCount,
