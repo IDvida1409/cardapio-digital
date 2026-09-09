@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover - optional outside production
     dict_row = None
 
 
-PARSER_VERSION = "backend-ai-v1"
+PARSER_VERSION = "backend-structural-v2"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_BLOCKS_PER_IMPORT = 80
@@ -356,6 +356,7 @@ def cells_in_rows(cells):
 
 def detect_menu_blocks(raw_workbook):
     blocks = []
+    block_id = 0
     for sheet in raw_workbook["sheets"]:
         sheet_cells = [cell for row in sheet["rows"] for cell in row["cells"]]
         headers = []
@@ -389,9 +390,17 @@ def detect_menu_blocks(raw_workbook):
             if len(block_cells) <= 1:
                 continue
 
+            block_id += 1
             block_name = f"{sheet['name']} / {header['headerInfo']['title']}"
             blocks.append(
                 {
+                    "id": f"block-{block_id}",
+                    "sourceSheet": sheet["name"],
+                    "sourceSheetIndex": sheet["index"],
+                    "startRow": header["startRow"],
+                    "endRow": end_row,
+                    "startColumn": start_col,
+                    "endColumn": end_col,
                     "header": header,
                     "sourceRefs": {source_ref(cell) for cell in block_cells},
                     "raw": {
@@ -503,6 +512,9 @@ def build_source_structure(blocks):
         ]
         result.append(
             {
+                "id": block["id"],
+                "sourceSheet": block["sourceSheet"],
+                "sourceSheetIndex": block["sourceSheetIndex"],
                 "sheet": block["raw"]["sheets"][0]["name"],
                 "header": header,
                 "sourceRefs": [cell["ref"] for cell in cells],
@@ -510,6 +522,231 @@ def build_source_structure(blocks):
             }
         )
     return result
+
+
+def is_wide_cell(cell, block):
+    block_width = max(1, block["endColumn"] - block["startColumn"] + 1)
+    return cell["columnSpan"] >= max(4, int(block_width * 0.30))
+
+
+def looks_like_marker(text, *markers):
+    normalized = normalize_text(text)
+    return any(marker in normalized for marker in markers)
+
+
+def ensure_type(types, title, source_refs, start_column=None, end_column=None):
+    clean_title = " ".join(str(title or "").split()) or "Itens do cardápio"
+    menu_type = {
+        "titulo": clean_title,
+        "itensComuns": [],
+        "sugestoes": [],
+        "sourceRefs": list(dict.fromkeys(source_refs)),
+        "_startColumn": start_column,
+        "_endColumn": end_column,
+        "_order": len(types),
+        "_suggestionHeaders": [],
+    }
+    types.append(menu_type)
+    return menu_type
+
+
+def append_unique(target, value):
+    clean = " ".join(str(value or "").split())
+    if clean and clean not in target:
+        target.append(clean)
+
+
+def build_structured_type_from_rows(block):
+    rows = cells_in_rows(block["raw"]["usefulCells"])
+    header_ref = source_ref(block["header"])
+    types = []
+
+    def active_type_for(cell):
+        matches = [
+            menu_type
+            for menu_type in types
+            if menu_type.get("_startColumn") is not None
+            and ranges_overlap(
+                menu_type["_startColumn"],
+                menu_type["_endColumn"],
+                cell["startColumn"],
+                cell["endColumn"],
+            )
+        ]
+        if matches:
+            matches.sort(
+                key=lambda item: (
+                    min(item["_endColumn"], cell["endColumn"])
+                    - max(item["_startColumn"], cell["startColumn"]),
+                    item.get("_order", 0),
+                    item["_startColumn"],
+                ),
+                reverse=True,
+            )
+            return matches[0]
+        return None
+
+    def get_or_create_type(cell):
+        menu_type = active_type_for(cell)
+        if menu_type:
+            return menu_type
+        return ensure_type(
+            types,
+            "Itens do cardápio",
+            [],
+            cell["startColumn"],
+            cell["endColumn"],
+        )
+
+    def is_type_title(cell):
+        text = str(cell["text"] or "")
+        active = active_type_for(cell)
+        has_completed_suggestions = bool(
+            active
+            and any(header.get("itens") for header in active.get("_suggestionHeaders") or [])
+        )
+        return (
+            is_wide_cell(cell, block)
+            and "\n" not in text
+            and not looks_like_marker(text, "sugest")
+            and (active is None or has_completed_suggestions)
+        )
+
+    for row in rows:
+        cells = row["cells"]
+        if not cells:
+            continue
+
+        # The first cell is the detected CARDAPIO header; it identifies the block.
+        if any(source_ref(cell) == header_ref for cell in cells):
+            continue
+
+        for cell in cells:
+            ref = source_ref(cell)
+
+            if is_type_title(cell):
+                ensure_type(
+                    types,
+                    cell["text"],
+                    [ref],
+                    cell["startColumn"],
+                    cell["endColumn"],
+                )
+                continue
+
+            current_type = get_or_create_type(cell)
+
+            if looks_like_marker(cell["text"], "sugest"):
+                suggestion_header = {
+                    "titulo": cell["text"],
+                    "startColumn": cell["startColumn"],
+                    "endColumn": cell["endColumn"],
+                    "itens": [],
+                    "sourceRefs": [ref],
+                }
+                current_type["_suggestionHeaders"].append(suggestion_header)
+                current_type["sugestoes"].append(
+                    {
+                        "titulo": " ".join(str(suggestion_header["titulo"]).split()),
+                        "itens": suggestion_header["itens"],
+                        "sourceRefs": suggestion_header["sourceRefs"],
+                    }
+                )
+                current_type["sourceRefs"].append(ref)
+                continue
+
+            suggestion_matches = [
+                header
+                for header in current_type.get("_suggestionHeaders") or []
+                if ranges_overlap(
+                    header["startColumn"],
+                    header["endColumn"],
+                    cell["startColumn"],
+                    cell["endColumn"],
+                )
+            ]
+            if suggestion_matches:
+                target_header = suggestion_matches[-1]
+                append_unique(target_header["itens"], cell["text"])
+                target_header["sourceRefs"].append(ref)
+                current_type["sourceRefs"].append(ref)
+                continue
+
+            append_unique(current_type["itensComuns"], cell["text"])
+            current_type["sourceRefs"].append(ref)
+
+    for menu_type in types:
+        menu_type["sourceRefs"] = list(dict.fromkeys(menu_type["sourceRefs"]))
+        for suggestion in menu_type["sugestoes"]:
+            suggestion["sourceRefs"] = list(dict.fromkeys(suggestion.get("sourceRefs") or []))
+        menu_type.pop("_startColumn", None)
+        menu_type.pop("_endColumn", None)
+        menu_type.pop("_order", None)
+        menu_type.pop("_suggestionHeaders", None)
+
+    return [menu_type for menu_type in types if menu_type["itensComuns"] or menu_type["sugestoes"]]
+
+
+def build_structured_from_blocks(raw_workbook, blocks):
+    selected_blocks = blocks[:MAX_BLOCKS_PER_IMPORT]
+    structured = {
+        "periodos": [],
+        "dias": [],
+        "celulasUsadas": [],
+        "celulasIgnoradas": [],
+        "celulasPendentes": [],
+        "blocosFonte": build_source_structure(selected_blocks),
+        "confianca": 0.93 if selected_blocks else 0,
+        "_aiModel": "deterministic-structure",
+    }
+
+    block_refs = set()
+    day_map = {}
+    for block in selected_blocks:
+        header = block["header"]["headerInfo"]
+        block_refs.update(block["sourceRefs"])
+        structured["celulasUsadas"].extend(sorted(block["sourceRefs"]))
+
+        day_key = (
+            block["sourceSheetIndex"],
+            header.get("date") or f"linha-{block['startRow']}",
+            header.get("dayName") or "",
+        )
+        if day_key not in day_map:
+            day_map[day_key] = {
+                "data": header.get("date", ""),
+                "diaSemana": header.get("dayName", ""),
+                "sourceSheet": block["sourceSheet"],
+                "sourceSheetIndex": block["sourceSheetIndex"],
+                "refeicoes": [],
+            }
+            structured["dias"].append(day_map[day_key])
+
+        meal_name = header.get("mealName") or "Refeição"
+        day = day_map[day_key]
+        meal = next((item for item in day["refeicoes"] if item.get("nome") == meal_name), None)
+        if not meal:
+            meal = {"nome": meal_name, "cardapios": []}
+            day["refeicoes"].append(meal)
+
+        meal["cardapios"].append(
+            {
+                "titulo": header.get("title", "") or f"{meal_name} {len(meal['cardapios']) + 1}",
+                "tipos": build_structured_type_from_rows(block),
+                "sourceRefs": sorted(block["sourceRefs"]),
+                "sourceSheet": block["sourceSheet"],
+                "sourceBlockId": block["id"],
+            }
+        )
+
+    all_refs = {source_ref(cell) for cell in raw_workbook["usefulCells"]}
+    for ref in sorted(all_refs - block_refs):
+        structured["celulasIgnoradas"].append(
+            {"ref": ref, "motivo": "Célula fora dos blocos de cardápio detectados."}
+        )
+
+    structured["celulasUsadas"] = list(dict.fromkeys(structured["celulasUsadas"]))
+    return structured
 
 
 def merge_block_result(target, block, block_result, model):
@@ -556,6 +793,10 @@ def merge_block_result(target, block, block_result, model):
 
 
 def call_gemini_by_blocks(raw_workbook, api_key, models, blocks):
+    # The deterministic pass is the source of truth. It preserves every detected
+    # source cell before any AI interpretation can summarize or misplace text.
+    return build_structured_from_blocks(raw_workbook, blocks)
+
     structured = {
         "periodos": [],
         "dias": [],
