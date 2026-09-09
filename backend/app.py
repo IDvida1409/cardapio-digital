@@ -966,6 +966,19 @@ class Store:
             columns = [column[0] for column in cur.description]
             return dict(zip(columns, row))
 
+    def get_latest_import(self):
+        with self.connect() as conn:
+            sql = "SELECT * FROM import_jobs ORDER BY created_at DESC LIMIT 1"
+            cur = conn.cursor()
+            cur.execute(sql)
+            row = cur.fetchone()
+            if not row:
+                return None
+            if isinstance(row, dict):
+                return row
+            columns = [column[0] for column in cur.description]
+            return dict(zip(columns, row))
+
     def save_import(self, raw_workbook, structured, validation):
         import_id = str(uuid.uuid4())
         status = "persisted" if validation["canPersist"] else "needs_review"
@@ -1228,10 +1241,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         import_match = re.match(r"^/api/import-cardapio/([^/]+)$", parsed_path.path)
-        if import_match:
+        if import_match or parsed_path.path == "/api/import-cardapio/latest":
             query = parse_qs(parsed_path.query)
             include_result = query.get("includeResult") == ["1"]
-            record = self.store.get_import(import_match.group(1))
+            record = (
+                self.store.get_latest_import()
+                if parsed_path.path.endswith("/latest")
+                else self.store.get_import(import_match.group(1))
+            )
             if not record:
                 self.write_json({"error": "Importação não encontrada."}, HTTPStatus.NOT_FOUND)
                 return
