@@ -1289,22 +1289,22 @@ function renderSectionIcon(title) {
   const normalized = normalizeText(title);
 
   if (normalized.includes("sobremesa")) {
-    return `<svg viewBox="0 0 24 24"><path d="M5 11h14l-1.2 8H6.2Z"></path><path d="M8 11a4 4 0 0 1 8 0"></path><path d="M10 6h4"></path></svg>`;
+    return `<svg viewBox="0 0 24 24"><path d="M6 12h12"></path><path d="M8 12v5a4 4 0 0 0 8 0v-5"></path><path d="M9 8h6"></path></svg>`;
   }
 
   if (normalized.includes("fruta")) {
-    return `<svg viewBox="0 0 24 24"><path d="M12 8c3-3 8-1.4 8 3.4 0 4.8-3.5 8.6-8 8.6s-8-3.8-8-8.6C4 6.6 9 5 12 8Z"></path><path d="M12 8c0-2 1.2-3.7 3.3-4.8"></path></svg>`;
+    return `<svg viewBox="0 0 24 24"><path d="M12 8c2.8-2.8 7-1.4 7 3.3C19 15.8 16 20 12 20s-7-4.2-7-8.7C5 6.6 9.2 5.2 12 8Z"></path><path d="M12 8c.2-2 1.2-3.5 3-4.5"></path></svg>`;
   }
 
   if (normalized.includes("salada") || normalized.includes("verdura") || normalized.includes("legume")) {
-    return `<svg viewBox="0 0 24 24"><path d="M5 19C5 9 14 5 20 5c0 7-5 14-15 14Z"></path><path d="M5 19c4-4 7-7 15-14"></path></svg>`;
+    return `<svg viewBox="0 0 24 24"><path d="M5 18C6 10 13 6 19 6c0 6-4 12-14 12Z"></path><path d="M7 17c3-3 6-6 12-11"></path></svg>`;
   }
 
   if (normalized.includes("grao") || normalized.includes("arroz") || normalized.includes("feijao")) {
-    return `<svg viewBox="0 0 24 24"><path d="M7 12c0-5 3-8 5-8s5 3 5 8-3 8-5 8-5-3-5-8Z"></path><path d="M12 4v16"></path><path d="M8.5 9.5H12"></path><path d="M12 14.5h3.5"></path></svg>`;
+    return `<svg viewBox="0 0 24 24"><path d="M6 12h12"></path><path d="M8 12c.4 4 2 7 4 7s3.6-3 4-7"></path><path d="M9 9c1.8-1 4.2-1 6 0"></path></svg>`;
   }
 
-  return `<svg viewBox="0 0 24 24"><path d="M12 3v18"></path><path d="M7 3v7a5 5 0 0 0 10 0V3"></path></svg>`;
+  return `<svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 0 0 14 0Z"></path><path d="M8 16h8"></path><path d="M12 5v5"></path></svg>`;
 }
 
 function renderSuggestionIcon() {

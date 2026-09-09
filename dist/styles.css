@@ -841,19 +841,19 @@ svg {
 }
 
 .section-icon {
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 7px;
-  background: rgba(9, 129, 95, 0.1);
+  border-radius: 6px;
+  background: rgba(9, 129, 95, 0.07);
   color: var(--green-700);
 }
 
 .section-icon svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2.2;
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.9;
 }
 
 .common-section span:not(.section-icon) {
