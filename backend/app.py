@@ -372,11 +372,13 @@ class Store:
         self.database_url = os.environ.get("DATABASE_URL", "").strip()
         self.sqlite_path = os.environ.get("SQLITE_PATH", "./nutrimenu.db")
         self.kind = "postgres" if self.database_url else "sqlite"
-        if self.kind == "postgres" and psycopg is None:
-            raise RuntimeError("psycopg não está instalado para conectar ao Postgres.")
+        self.ready = False
+        self.init_error = ""
 
     def connect(self):
         if self.kind == "postgres":
+            if psycopg is None:
+                raise RuntimeError("psycopg não está instalado para conectar ao Postgres.")
             return psycopg.connect(self.database_url, row_factory=dict_row)
         return sqlite3.connect(self.sqlite_path)
 
@@ -479,6 +481,8 @@ class Store:
                 """
             )
             conn.commit()
+            self.ready = True
+            self.init_error = ""
 
     def execute(self, conn, sql, values):
         if self.kind == "postgres":
@@ -692,7 +696,16 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed_path = urlparse(self.path)
         if parsed_path.path == "/health":
-            self.write_json({"ok": True, "parserVersion": PARSER_VERSION, "database": self.store.kind})
+            self.write_json(
+                {
+                    "ok": self.store.ready,
+                    "parserVersion": PARSER_VERSION,
+                    "database": self.store.kind,
+                    "databaseReady": self.store.ready,
+                    "databaseError": self.store.init_error,
+                    "geminiConfigured": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+                }
+            )
             return
         self.write_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
@@ -742,7 +755,12 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     port = int(os.environ.get("PORT", "8000"))
-    Handler.store.init()
+    try:
+        Handler.store.init()
+    except Exception as exc:
+        Handler.store.ready = False
+        Handler.store.init_error = str(exc)
+        print(f"Database initialization failed: {exc}", flush=True)
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"NutriMenu AI API listening on :{port}", flush=True)
     server.serve_forever()
