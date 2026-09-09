@@ -1292,9 +1292,10 @@ function renderSuggestionIcon() {
 function renderSuggestionCard(suggestion) {
   const dishes = Array.isArray(suggestion.dishes) ? suggestion.dishes : [];
   const fallbackItems = flattenSuggestionItems(suggestion);
+  const items = dishes.length ? dishes.map((dish) => dish.name).filter(Boolean) : fallbackItems;
   const countLabel = suggestion.itemCount
     ? plural(suggestion.itemCount, "componente", "componentes")
-    : plural(dishes.length || fallbackItems.length, "preparação", "preparações");
+    : plural(items.length, "preparação", "preparações");
 
   return `
     <article class="suggestion-card">
@@ -1302,27 +1303,32 @@ function renderSuggestionCard(suggestion) {
         <strong>${escapeHtml(suggestion.title)}</strong>
         <span>${escapeHtml(countLabel)}</span>
       </header>
-      ${dishes.length ? `
-        <div class="dish-stack simple-dish-stack">
-          ${dishes.map(renderDishCard).join("")}
-        </div>
-      ` : `
-        <div class="dish-stack simple-dish-stack">
-          ${fallbackItems.map((item) => `<section class="dish-card dish-line"><strong>${escapeHtml(item)}</strong></section>`).join("")}
-        </div>
-      `}
+      ${renderSuggestionItems(items)}
     </article>
   `;
 }
 
-function renderDishCard(dish) {
-  const componentCount = Array.isArray(dish.components) ? dish.components.length : 0;
+function renderSuggestionItems(items) {
+  const cleanItems = (items || []).map((item) => String(item || "").trim()).filter(Boolean);
+  if (!cleanItems.length) return "";
+
+  const visibleItems = cleanItems.slice(0, 6);
+  const hiddenItems = cleanItems.slice(6);
+
+  const list = (values) => `
+    <ul class="suggestion-items">
+      ${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ul>
+  `;
+
+  if (!hiddenItems.length) return list(visibleItems);
 
   return `
-    <section class="dish-card dish-line">
-      <strong>${escapeHtml(dish.name)}</strong>
-      ${componentCount > 1 ? `<small>${plural(componentCount, "componente", "componentes")}</small>` : ""}
-    </section>
+    ${list(visibleItems)}
+    <details class="suggestion-more">
+      <summary>Ver mais ${hiddenItems.length}</summary>
+      ${list(hiddenItems)}
+    </details>
   `;
 }
 
@@ -1382,7 +1388,7 @@ function renderImportedState(imported, created) {
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
   datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
-  summaryLabel.textContent = imported.serverImport ? "Arquivo processado pela IA" : "Arquivo lido localmente";
+  summaryLabel.textContent = imported.serverImport ? "Arquivo processado pelo backend" : "Arquivo lido localmente";
   summaryTitle.textContent = imported.periodLabel;
   summaryText.textContent = `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")}. Períodos: ${imported.periods.map((period) => period.label).join("; ")}.`;
   renderSelectedDay();
@@ -1530,9 +1536,9 @@ excelInput.addEventListener("change", async () => {
   }
 
   validationPill.textContent = "Enviando Excel";
-  summaryLabel.textContent = "Processamento com IA";
+  summaryLabel.textContent = "Processamento estrutural";
   summaryTitle.textContent = "Interpretando planilha";
-  summaryText.textContent = "O backend está lendo o Excel, chamando a IA e validando as células antes de gravar.";
+  summaryText.textContent = "O backend está lendo o Excel, preservando a estrutura dos blocos e validando as células antes de gravar.";
   mealGrid.hidden = true;
   mealGrid.innerHTML = "";
 
@@ -1550,4 +1556,18 @@ excelInput.addEventListener("change", async () => {
   }
 });
 
-renderEmptyImportState();
+async function loadInitialBackendImport() {
+  renderEmptyImportState();
+  const loader = window.NutriMenuImporter && window.NutriMenuImporter.loadLatestImport;
+  if (!loader) return;
+
+  try {
+    const imported = await loader();
+    if (!imported || currentImported) return;
+    renderImportedState(imported, { alimentos: 0, preparacoes: 0, processos: 0, dietas: 0, cardapios: 0 });
+  } catch (error) {
+    // Keep the empty state when there is no backend import or the service is waking up.
+  }
+}
+
+loadInitialBackendImport();

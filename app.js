@@ -1292,9 +1292,10 @@ function renderSuggestionIcon() {
 function renderSuggestionCard(suggestion) {
   const dishes = Array.isArray(suggestion.dishes) ? suggestion.dishes : [];
   const fallbackItems = flattenSuggestionItems(suggestion);
+  const items = dishes.length ? dishes.map((dish) => dish.name).filter(Boolean) : fallbackItems;
   const countLabel = suggestion.itemCount
     ? plural(suggestion.itemCount, "componente", "componentes")
-    : plural(dishes.length || fallbackItems.length, "preparação", "preparações");
+    : plural(items.length, "preparação", "preparações");
 
   return `
     <article class="suggestion-card">
@@ -1302,27 +1303,32 @@ function renderSuggestionCard(suggestion) {
         <strong>${escapeHtml(suggestion.title)}</strong>
         <span>${escapeHtml(countLabel)}</span>
       </header>
-      ${dishes.length ? `
-        <div class="dish-stack simple-dish-stack">
-          ${dishes.map(renderDishCard).join("")}
-        </div>
-      ` : `
-        <div class="dish-stack simple-dish-stack">
-          ${fallbackItems.map((item) => `<section class="dish-card dish-line"><strong>${escapeHtml(item)}</strong></section>`).join("")}
-        </div>
-      `}
+      ${renderSuggestionItems(items)}
     </article>
   `;
 }
 
-function renderDishCard(dish) {
-  const componentCount = Array.isArray(dish.components) ? dish.components.length : 0;
+function renderSuggestionItems(items) {
+  const cleanItems = (items || []).map((item) => String(item || "").trim()).filter(Boolean);
+  if (!cleanItems.length) return "";
+
+  const visibleItems = cleanItems.slice(0, 6);
+  const hiddenItems = cleanItems.slice(6);
+
+  const list = (values) => `
+    <ul class="suggestion-items">
+      ${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ul>
+  `;
+
+  if (!hiddenItems.length) return list(visibleItems);
 
   return `
-    <section class="dish-card dish-line">
-      <strong>${escapeHtml(dish.name)}</strong>
-      ${componentCount > 1 ? `<small>${plural(componentCount, "componente", "componentes")}</small>` : ""}
-    </section>
+    ${list(visibleItems)}
+    <details class="suggestion-more">
+      <summary>Ver mais ${hiddenItems.length}</summary>
+      ${list(hiddenItems)}
+    </details>
   `;
 }
 
