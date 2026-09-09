@@ -6,7 +6,7 @@ import sqlite3
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from http import HTTPStatus
@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover - optional outside production
     dict_row = None
 
 
-PARSER_VERSION = "backend-structural-v2"
+PARSER_VERSION = "backend-structural-v3"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_BLOCKS_PER_IMPORT = 80
@@ -48,6 +48,33 @@ MEAL_LABELS = {
     "ceia": "Ceia",
     "lanche": "Lanche",
 }
+MONTH_LABELS = {
+    "jan": 1,
+    "janeiro": 1,
+    "fev": 2,
+    "fevereiro": 2,
+    "mar": 3,
+    "marco": 3,
+    "março": 3,
+    "abr": 4,
+    "abril": 4,
+    "mai": 5,
+    "maio": 5,
+    "jun": 6,
+    "junho": 6,
+    "jul": 7,
+    "julho": 7,
+    "ago": 8,
+    "agosto": 8,
+    "set": 9,
+    "setembro": 9,
+    "out": 10,
+    "outubro": 10,
+    "nov": 11,
+    "novembro": 11,
+    "dez": 12,
+    "dezembro": 12,
+}
 
 
 def now_iso():
@@ -61,6 +88,14 @@ def normalize_text(value):
     text = "".join(char for char in text if unicodedata.category(char) != "Mn")
     text = text.replace("_", " ").replace("|", " ").lower()
     return " ".join(text.split())
+
+
+def split_cell_lines(value):
+    return [
+        " ".join(part.split())
+        for part in re.split(r"[\r\n]+", str(value or ""))
+        if normalize_text(part)
+    ]
 
 
 def cell_to_text(value):
@@ -308,6 +343,94 @@ def source_ref(cell):
     return f"{cell['sheetIndex']}!{cell['address']}"
 
 
+def parse_sheet_period(sheet_name):
+    normalized = normalize_text(sheet_name)
+    match = re.search(
+        r"\b(?:card(?:apio)?|menu)?\s*(\d{1,2})\s*(?:a|ao|-)\s*(\d{1,2})\s*([a-zç]{3,12})\s*(\d{2,4})?\b",
+        normalized,
+    )
+    if not match:
+        return None
+
+    start_day = int(match.group(1))
+    end_day = int(match.group(2))
+    month = MONTH_LABELS.get(match.group(3))
+    if not month:
+        return None
+
+    year_text = match.group(4)
+    year = int(year_text) if year_text else datetime.now().year
+    if year < 100:
+        year += 2000
+
+    try:
+        start_date = datetime(year, month, start_day).date()
+        end_date = datetime(year, month, end_day).date()
+    except ValueError:
+        return None
+
+    return {
+        "title": sheet_name,
+        "startDay": start_day,
+        "endDay": end_day,
+        "startDate": start_date,
+        "endDate": end_date,
+    }
+
+
+def date_text_from_date(value):
+    return value.strftime("%d/%m/%Y")
+
+
+def date_sort_key(value):
+    match = re.match(r"^(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?$", str(value or "").strip())
+    if not match:
+        return None
+    year = match.group(3) or "0000"
+    if len(year) == 2:
+        year = f"20{year}"
+    return (int(year), int(match.group(2)), int(match.group(1)))
+
+
+def rebuild_periods_from_days(days, fallback_periods):
+    grouped = {}
+    for day in days:
+        date_text = day.get("data", "")
+        key = date_sort_key(date_text)
+        if not key:
+            continue
+        sheet_key = day.get("sourceSheetIndex") or day.get("sourceSheet") or len(grouped)
+        grouped.setdefault(sheet_key, {"title": day.get("sourceSheet", "Período"), "dates": []})
+        grouped[sheet_key]["dates"].append((key, date_text))
+
+    if not grouped:
+        return fallback_periods
+
+    periods = []
+    for group in grouped.values():
+        unique_dates = sorted(set(group["dates"]), key=lambda item: item[0])
+        periods.append(
+            {
+                "titulo": group["title"],
+                "inicio": unique_dates[0][1],
+                "fim": unique_dates[-1][1],
+            }
+        )
+    return periods
+
+
+def infer_date_from_card_number(period, card_number):
+    number = int(card_number)
+    period_length = (period["endDate"] - period["startDate"]).days
+    if period["startDay"] <= number <= period["endDay"]:
+        offset = number - period["startDay"]
+    elif 1 <= number <= period_length + 1:
+        offset = number - 1
+    else:
+        return None
+    return period["startDate"] + timedelta(days=offset)
+
+
 def ranges_overlap(left_start, left_end, right_start, right_end):
     return left_start <= right_end and right_start <= left_end
 
@@ -358,6 +481,7 @@ def detect_menu_blocks(raw_workbook):
     blocks = []
     block_id = 0
     for sheet in raw_workbook["sheets"]:
+        sheet_period = parse_sheet_period(sheet["name"])
         sheet_cells = [cell for row in sheet["rows"] for cell in row["cells"]]
         headers = []
         for cell in sheet_cells:
@@ -370,6 +494,15 @@ def detect_menu_blocks(raw_workbook):
             continue
 
         for index, header in enumerate(headers[:MAX_BLOCKS_PER_IMPORT]):
+            header_info = dict(header["headerInfo"])
+            if not header_info.get("date") and sheet_period and header_info.get("cardNumber"):
+                inferred_date = infer_date_from_card_number(sheet_period, header_info["cardNumber"])
+                if inferred_date:
+                    header_info["date"] = date_text_from_date(inferred_date)
+                    header_info["dayName"] = header_info.get("dayName") or WEEKDAY_LABELS[
+                        ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"][inferred_date.weekday()]
+                    ]
+
             next_rows = [
                 other["startRow"]
                 for other in headers
@@ -401,7 +534,8 @@ def detect_menu_blocks(raw_workbook):
                     "endRow": end_row,
                     "startColumn": start_col,
                     "endColumn": end_col,
-                    "header": header,
+                    "header": {**header, "headerInfo": header_info},
+                    "sheetPeriod": sheet_period,
                     "sourceRefs": {source_ref(cell) for cell in block_cells},
                     "raw": {
                         "fileName": raw_workbook["fileName"],
@@ -556,6 +690,26 @@ def append_unique(target, value):
         target.append(clean)
 
 
+def append_cell_texts(target, value):
+    lines = split_cell_lines(value)
+    for line in split_cell_lines(value):
+        append_unique(target, line)
+    return lines
+
+
+def add_cell_mapping(menu_type, ref, role, texts):
+    clean_texts = [text for text in texts if normalize_text(text)]
+    if not clean_texts:
+        return
+    menu_type.setdefault("_cellMappings", []).append(
+        {
+            "ref": ref,
+            "role": role,
+            "texts": clean_texts,
+        }
+    )
+
+
 def build_structured_type_from_rows(block):
     rows = cells_in_rows(block["raw"]["usefulCells"])
     header_ref = source_ref(block["header"])
@@ -601,6 +755,25 @@ def build_structured_type_from_rows(block):
     def is_type_title(cell):
         text = str(cell["text"] or "")
         active = active_type_for(cell)
+        active_width = (
+            active["_endColumn"] - active["_startColumn"] + 1
+            if active and active.get("_startColumn") is not None
+            else 0
+        )
+        fills_active_width = bool(active_width and cell["columnSpan"] >= max(4, int(active_width * 0.75)))
+        is_under_suggestion = bool(
+            active
+            and not fills_active_width
+            and any(
+                ranges_overlap(
+                    header["startColumn"],
+                    header["endColumn"],
+                    cell["startColumn"],
+                    cell["endColumn"],
+                )
+                for header in active.get("_suggestionHeaders") or []
+            )
+        )
         has_completed_suggestions = bool(
             active
             and any(header.get("itens") for header in active.get("_suggestionHeaders") or [])
@@ -609,6 +782,7 @@ def build_structured_type_from_rows(block):
             is_wide_cell(cell, block)
             and "\n" not in text
             and not looks_like_marker(text, "sugest")
+            and not is_under_suggestion
             and (active is None or has_completed_suggestions)
         )
 
@@ -625,13 +799,14 @@ def build_structured_type_from_rows(block):
             ref = source_ref(cell)
 
             if is_type_title(cell):
-                ensure_type(
+                menu_type = ensure_type(
                     types,
                     cell["text"],
                     [ref],
                     cell["startColumn"],
                     cell["endColumn"],
                 )
+                add_cell_mapping(menu_type, ref, "tipo", [cell["text"]])
                 continue
 
             current_type = get_or_create_type(cell)
@@ -653,6 +828,7 @@ def build_structured_type_from_rows(block):
                     }
                 )
                 current_type["sourceRefs"].append(ref)
+                add_cell_mapping(current_type, ref, "sugestao", [cell["text"]])
                 continue
 
             suggestion_matches = [
@@ -667,18 +843,21 @@ def build_structured_type_from_rows(block):
             ]
             if suggestion_matches:
                 target_header = suggestion_matches[-1]
-                append_unique(target_header["itens"], cell["text"])
+                added = append_cell_texts(target_header["itens"], cell["text"])
                 target_header["sourceRefs"].append(ref)
                 current_type["sourceRefs"].append(ref)
+                add_cell_mapping(current_type, ref, "item_sugestao", added)
                 continue
 
-            append_unique(current_type["itensComuns"], cell["text"])
+            added = append_cell_texts(current_type["itensComuns"], cell["text"])
             current_type["sourceRefs"].append(ref)
+            add_cell_mapping(current_type, ref, "item_comum", added)
 
     for menu_type in types:
         menu_type["sourceRefs"] = list(dict.fromkeys(menu_type["sourceRefs"]))
         for suggestion in menu_type["sugestoes"]:
             suggestion["sourceRefs"] = list(dict.fromkeys(suggestion.get("sourceRefs") or []))
+        menu_type["cellMappings"] = menu_type.pop("_cellMappings", [])
         menu_type.pop("_startColumn", None)
         menu_type.pop("_endColumn", None)
         menu_type.pop("_order", None)
@@ -689,13 +868,24 @@ def build_structured_type_from_rows(block):
 
 def build_structured_from_blocks(raw_workbook, blocks):
     selected_blocks = blocks[:MAX_BLOCKS_PER_IMPORT]
+    period_map = {}
+    for block in selected_blocks:
+        period = block.get("sheetPeriod")
+        if period:
+            period_map[block["sourceSheetIndex"]] = {
+                "titulo": period["title"],
+                "inicio": date_text_from_date(period["startDate"]),
+                "fim": date_text_from_date(period["endDate"]),
+            }
+
     structured = {
-        "periodos": [],
+        "periodos": list(period_map.values()),
         "dias": [],
         "celulasUsadas": [],
         "celulasIgnoradas": [],
         "celulasPendentes": [],
         "blocosFonte": build_source_structure(selected_blocks),
+        "auditoriaEstrutural": [],
         "confianca": 0.93 if selected_blocks else 0,
         "_aiModel": "deterministic-structure",
     }
@@ -729,10 +919,38 @@ def build_structured_from_blocks(raw_workbook, blocks):
             meal = {"nome": meal_name, "cardapios": []}
             day["refeicoes"].append(meal)
 
+        card_types = build_structured_type_from_rows(block)
+        structured["auditoriaEstrutural"].append(
+            {
+                "ref": source_ref(block["header"]),
+                "role": "cardapio",
+                "texts": [header.get("title", "")],
+                "sourceBlockId": block["id"],
+                "sourceSheet": block["sourceSheet"],
+                "day": header.get("date", ""),
+                "meal": meal_name,
+                "card": header.get("title", ""),
+                "type": "",
+            }
+        )
+        for menu_type in card_types:
+            for mapping in menu_type.get("cellMappings") or []:
+                structured["auditoriaEstrutural"].append(
+                    {
+                        **mapping,
+                        "sourceBlockId": block["id"],
+                        "sourceSheet": block["sourceSheet"],
+                        "day": header.get("date", ""),
+                        "meal": meal_name,
+                        "card": header.get("title", ""),
+                        "type": menu_type.get("titulo", ""),
+                    }
+                )
+
         meal["cardapios"].append(
             {
                 "titulo": header.get("title", "") or f"{meal_name} {len(meal['cardapios']) + 1}",
-                "tipos": build_structured_type_from_rows(block),
+                "tipos": card_types,
                 "sourceRefs": sorted(block["sourceRefs"]),
                 "sourceSheet": block["sourceSheet"],
                 "sourceBlockId": block["id"],
@@ -745,6 +963,7 @@ def build_structured_from_blocks(raw_workbook, blocks):
             {"ref": ref, "motivo": "Célula fora dos blocos de cardápio detectados."}
         )
 
+    structured["periodos"] = rebuild_periods_from_days(structured["dias"], structured["periodos"])
     structured["celulasUsadas"] = list(dict.fromkeys(structured["celulasUsadas"]))
     return structured
 
@@ -963,6 +1182,19 @@ def validate_ai_result(raw_workbook, structured):
     used = set(structured.get("celulasUsadas") or [])
     ignored = {item.get("ref") for item in structured.get("celulasIgnoradas") or [] if item.get("ref")}
     pending = {item.get("ref") for item in structured.get("celulasPendentes") or [] if item.get("ref")}
+    mapped = {item.get("ref") for item in structured.get("auditoriaEstrutural") or [] if item.get("ref")}
+    structurally_missing = sorted(used - mapped)
+    if structurally_missing:
+        structured.setdefault("celulasPendentes", [])
+        structured["celulasPendentes"].extend(
+            {
+                "ref": ref,
+                "motivo": "Célula contada como usada, mas sem caminho estrutural no cardápio.",
+            }
+            for ref in structurally_missing
+        )
+        pending.update(structurally_missing)
+
     accounted = used | ignored | pending
     missing = sorted(all_refs - accounted)
 
@@ -980,6 +1212,8 @@ def validate_ai_result(raw_workbook, structured):
         "ignoredCells": len(ignored),
         "pendingCells": len(pending),
         "missingCells": len(missing),
+        "structurallyMappedCells": len(mapped),
+        "structurallyMissingCells": len(structurally_missing),
         "canPersist": len(pending) == 0 and float(structured.get("confianca") or 0) >= 0.85,
     }
 
