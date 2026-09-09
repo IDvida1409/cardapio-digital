@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -767,6 +768,107 @@ class Store:
             sql = sql.replace("?", "%s")
         conn.cursor().execute(sql, values)
 
+    def create_processing_import(self, raw_workbook):
+        import_id = str(uuid.uuid4())
+        payload = {
+            "summary": {
+                "fileName": raw_workbook["fileName"],
+                "sheetCount": raw_workbook["sheetCount"],
+                "fileHash": raw_workbook["sha256"],
+            }
+        }
+        with self.connect() as conn:
+            self.execute(
+                conn,
+                """
+                INSERT INTO import_jobs (
+                  id, filename, file_hash, status, parser_version, ai_model, confidence,
+                  raw_cell_count, used_cell_count, ignored_cell_count, pending_cell_count,
+                  payload, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    import_id,
+                    raw_workbook["fileName"],
+                    raw_workbook["sha256"],
+                    "processing",
+                    PARSER_VERSION,
+                    None,
+                    0,
+                    len(raw_workbook["usefulCells"]),
+                    0,
+                    0,
+                    len(raw_workbook["usefulCells"]),
+                    json.dumps(payload, ensure_ascii=False),
+                    now_iso(),
+                ),
+            )
+            conn.commit()
+        return import_id
+
+    def complete_import(self, import_id, raw_workbook, structured, validation):
+        status = "persisted" if validation["canPersist"] else "needs_review"
+        timestamp = now_iso()
+        with self.connect() as conn:
+            self.execute(
+                conn,
+                """
+                UPDATE import_jobs
+                SET status = ?, ai_model = ?, confidence = ?, raw_cell_count = ?,
+                    used_cell_count = ?, ignored_cell_count = ?, pending_cell_count = ?,
+                    payload = ?
+                WHERE id = ?
+                """,
+                (
+                    status,
+                    structured.get("_aiModel"),
+                    float(structured.get("confianca") or 0),
+                    validation["totalUsefulCells"],
+                    validation["usedCells"],
+                    validation["ignoredCells"],
+                    validation["pendingCells"],
+                    json.dumps(structured, ensure_ascii=False),
+                    import_id,
+                ),
+            )
+            self.save_cell_audit(conn, import_id, raw_workbook, structured, timestamp)
+            if validation["canPersist"]:
+                self.save_menu(conn, import_id, structured, timestamp)
+            conn.commit()
+        return status
+
+    def fail_import(self, import_id, raw_workbook, error):
+        payload = {
+            "error": str(error),
+            "summary": {
+                "fileName": raw_workbook["fileName"],
+                "sheetCount": raw_workbook["sheetCount"],
+                "fileHash": raw_workbook["sha256"],
+            },
+        }
+        with self.connect() as conn:
+            self.execute(
+                conn,
+                "UPDATE import_jobs SET status = ?, payload = ? WHERE id = ?",
+                ("failed", json.dumps(payload, ensure_ascii=False), import_id),
+            )
+            conn.commit()
+
+    def get_import(self, import_id):
+        with self.connect() as conn:
+            sql = "SELECT * FROM import_jobs WHERE id = ?"
+            if self.kind == "postgres":
+                sql = sql.replace("?", "%s")
+            cur = conn.cursor()
+            cur.execute(sql, (import_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            if isinstance(row, dict):
+                return row
+            columns = [column[0] for column in cur.description]
+            return dict(zip(columns, row))
+
     def save_import(self, raw_workbook, structured, validation):
         import_id = str(uuid.uuid4())
         status = "persisted" if validation["canPersist"] else "needs_review"
@@ -963,6 +1065,40 @@ def allowed_origin(origin):
     return "*" in allowed or origin in allowed
 
 
+def import_summary(raw_workbook, structured=None):
+    structured = structured or {}
+    return {
+        "fileName": raw_workbook["fileName"],
+        "sheetCount": raw_workbook["sheetCount"],
+        "fileHash": raw_workbook["sha256"],
+        "periodCount": len(structured.get("periodos") or []),
+        "dayCount": len(structured.get("dias") or []),
+    }
+
+
+def import_response(import_id, status, raw_workbook, structured, validation, include_result):
+    payload = {
+        "importId": import_id,
+        "status": status,
+        "parserVersion": PARSER_VERSION,
+        "aiModel": structured.get("_aiModel") if structured else None,
+        "validation": validation,
+        "summary": import_summary(raw_workbook, structured),
+    }
+    if include_result and structured:
+        payload["result"] = structured
+    return payload
+
+
+def process_import_job(store, import_id, raw_workbook):
+    try:
+        structured = call_gemini(raw_workbook) or fallback_without_ai(raw_workbook)
+        validation = validate_ai_result(raw_workbook, structured)
+        store.complete_import(import_id, raw_workbook, structured, validation)
+    except Exception as exc:
+        store.fail_import(import_id, raw_workbook, exc)
+
+
 class Handler(BaseHTTPRequestHandler):
     store = Store()
 
@@ -993,6 +1129,47 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
             return
+
+        import_match = re.match(r"^/api/import-cardapio/([^/]+)$", parsed_path.path)
+        if import_match:
+            query = parse_qs(parsed_path.query)
+            include_result = query.get("includeResult") == ["1"]
+            record = self.store.get_import(import_match.group(1))
+            if not record:
+                self.write_json({"error": "Importação não encontrada."}, HTTPStatus.NOT_FOUND)
+                return
+
+            stored_payload = json.loads(record.get("payload") or "{}")
+            structured = stored_payload if isinstance(stored_payload, dict) and "dias" in stored_payload else None
+            validation = {
+                "totalUsefulCells": int(record.get("raw_cell_count") or 0),
+                "usedCells": int(record.get("used_cell_count") or 0),
+                "ignoredCells": int(record.get("ignored_cell_count") or 0),
+                "pendingCells": int(record.get("pending_cell_count") or 0),
+                "missingCells": 0,
+                "canPersist": record.get("status") == "persisted",
+            }
+            summary = stored_payload.get("summary") if isinstance(stored_payload, dict) else None
+            response = {
+                "importId": record["id"],
+                "status": record["status"],
+                "parserVersion": record["parser_version"],
+                "aiModel": record.get("ai_model"),
+                "validation": validation,
+                "summary": summary or {
+                    "fileName": record["filename"],
+                    "sheetCount": 0,
+                    "fileHash": record["file_hash"],
+                    "periodCount": len(structured.get("periodos") or []) if structured else 0,
+                    "dayCount": len(structured.get("dias") or []) if structured else 0,
+                },
+            }
+            if record["status"] == "failed":
+                response["error"] = stored_payload.get("error", "Falha na importação.")
+            if include_result and structured:
+                response["result"] = structured
+            self.write_json(response)
+            return
         self.write_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
     def do_POST(self):
@@ -1004,29 +1181,45 @@ class Handler(BaseHTTPRequestHandler):
         try:
             query = parse_qs(parsed_path.query)
             include_result = query.get("includeResult") == ["1"]
+            async_mode = query.get("async") == ["1"]
             filename, file_bytes = parse_multipart(self)
             raw = read_workbook(file_bytes, filename)
+
+            if async_mode:
+                import_id = self.store.create_processing_import(raw)
+                worker = threading.Thread(
+                    target=process_import_job,
+                    args=(self.store, import_id, raw),
+                    daemon=True,
+                )
+                worker.start()
+                self.write_json(
+                    import_response(
+                        import_id,
+                        "processing",
+                        raw,
+                        None,
+                        {
+                            "totalUsefulCells": len(raw["usefulCells"]),
+                            "usedCells": 0,
+                            "ignoredCells": 0,
+                            "pendingCells": len(raw["usefulCells"]),
+                            "missingCells": 0,
+                            "canPersist": False,
+                        },
+                        False,
+                    ),
+                    HTTPStatus.ACCEPTED,
+                )
+                return
+
             structured = call_gemini(raw) or fallback_without_ai(raw)
             validation = validate_ai_result(raw, structured)
             import_id, status = self.store.save_import(raw, structured, validation)
-            payload = {
-                "importId": import_id,
-                "status": status,
-                "parserVersion": PARSER_VERSION,
-                "aiModel": structured.get("_aiModel"),
-                "validation": validation,
-                "summary": {
-                    "fileName": raw["fileName"],
-                    "sheetCount": raw["sheetCount"],
-                    "fileHash": raw["sha256"],
-                    "periodCount": len(structured.get("periodos") or []),
-                    "dayCount": len(structured.get("dias") or []),
-                },
-            }
-            if include_result:
-                payload["result"] = structured
-
-            self.write_json(payload, HTTPStatus.CREATED if status == "persisted" else HTTPStatus.ACCEPTED)
+            self.write_json(
+                import_response(import_id, status, raw, structured, validation, include_result),
+                HTTPStatus.CREATED if status == "persisted" else HTTPStatus.ACCEPTED,
+            )
         except Exception as exc:
             self.write_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 

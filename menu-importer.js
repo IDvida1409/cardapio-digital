@@ -169,7 +169,7 @@
     const form = new FormData();
     form.append("file", file);
 
-    const response = await fetch(`${apiUrl()}/api/import-cardapio?includeResult=1`, {
+    const response = await fetch(`${apiUrl()}/api/import-cardapio?async=1`, {
       method: "POST",
       body: form
     });
@@ -178,9 +178,31 @@
       throw new Error(payload.error || "Backend não conseguiu interpretar a planilha.");
     }
     if (!payload.result) {
+      if (payload.importId && payload.status === "processing") {
+        return pollBackendImport(file, payload.importId);
+      }
       throw new Error("Backend respondeu sem a estrutura do cardápio.");
     }
     return adaptAiImport(file, payload);
+  }
+
+  async function pollBackendImport(file, importId) {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      await wait(attempt < 5 ? 2500 : 5000);
+      const response = await fetch(`${apiUrl()}/api/import-cardapio/${encodeURIComponent(importId)}?includeResult=1`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Não foi possível consultar o processamento da importação.");
+      }
+      if (payload.status === "failed") {
+        throw new Error(payload.error || "A importação falhou no backend.");
+      }
+      if (payload.status && payload.status !== "processing" && payload.result) {
+        return adaptAiImport(file, payload);
+      }
+    }
+    throw new Error("A importação ainda está processando. Tente consultar novamente em alguns instantes.");
   }
 
   async function parseWorkbook(file) {
@@ -205,6 +227,7 @@
   window.NutriMenuImporter = {
     parseWorkbook,
     parseWorkbookWithBackend,
+    pollBackendImport,
     version: "backend-ai-v1"
   };
 })(window);
