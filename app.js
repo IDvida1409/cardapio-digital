@@ -1209,30 +1209,36 @@ function renderMenuBlock(menu) {
         <em>${plural(groups.length, "tipo", "tipos")} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
       <div class="menu-group-stack">
-        ${groups.map((group) => renderDietGroup(group, false)).join("")}
+        ${groups.map((group, index) => renderDietGroup(group, index < 2, index)).join("")}
       </div>
     </details>
   `;
 }
 
-function renderDietGroup(group, open) {
+function renderDietGroup(group, open, index = 0) {
   const itemCount = group.itemCount || group.suggestions.reduce((total, suggestion) => total + suggestion.itemCount, 0);
   const commonSections = Array.isArray(group.commonSections) ? group.commonSections : [];
   const summaryLabel = group.suggestions.length
     ? plural(group.suggestions.length, "sugestão", "sugestões")
     : "Itens comuns";
+  const toneClass = `tone-${(index % 4) + 1}`;
 
   return `
-    <details class="diet-block" ${open ? "open" : ""}>
+    <details class="diet-block ${toneClass}" ${open ? "open" : ""}>
       <summary>
-        <span class="summary-plus" aria-hidden="true"></span>
+        <span class="summary-toggle" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
+        </span>
         <span>${escapeHtml(group.title)}</span>
         <em>${summaryLabel} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
       <div class="diet-content">
         ${renderCommonSections(commonSections)}
         ${group.suggestions.length ? `
-          <div class="suggestion-heading">Sugestões</div>
+          <div class="suggestion-heading">
+            <span class="section-icon" aria-hidden="true">${renderSuggestionIcon()}</span>
+            <span>Sugestões</span>
+          </div>
           <div class="suggestion-grid">
             ${group.suggestions.map((suggestion) => renderSuggestionCard(suggestion)).join("")}
           </div>
@@ -1248,13 +1254,39 @@ function renderCommonSections(sections) {
   return `
     <div class="common-menu">
       ${sections.map((section) => `
-        <div class="common-section">
-          <strong>${escapeHtml(section.title)}</strong>
+        <div class="common-section" title="${escapeHtml(section.title)}">
+          <span class="section-icon" aria-hidden="true">${renderSectionIcon(section.title)}</span>
           <span>${escapeHtml((section.items || []).join(" · "))}</span>
         </div>
       `).join("")}
     </div>
   `;
+}
+
+function renderSectionIcon(title) {
+  const normalized = normalizeText(title);
+
+  if (normalized.includes("sobremesa")) {
+    return `<svg viewBox="0 0 24 24"><path d="M5 11h14l-1.2 8H6.2Z"></path><path d="M8 11a4 4 0 0 1 8 0"></path><path d="M10 6h4"></path></svg>`;
+  }
+
+  if (normalized.includes("fruta")) {
+    return `<svg viewBox="0 0 24 24"><path d="M12 8c3-3 8-1.4 8 3.4 0 4.8-3.5 8.6-8 8.6s-8-3.8-8-8.6C4 6.6 9 5 12 8Z"></path><path d="M12 8c0-2 1.2-3.7 3.3-4.8"></path></svg>`;
+  }
+
+  if (normalized.includes("salada") || normalized.includes("verdura") || normalized.includes("legume")) {
+    return `<svg viewBox="0 0 24 24"><path d="M5 19C5 9 14 5 20 5c0 7-5 14-15 14Z"></path><path d="M5 19c4-4 7-7 15-14"></path></svg>`;
+  }
+
+  if (normalized.includes("grao") || normalized.includes("arroz") || normalized.includes("feijao")) {
+    return `<svg viewBox="0 0 24 24"><path d="M7 12c0-5 3-8 5-8s5 3 5 8-3 8-5 8-5-3-5-8Z"></path><path d="M12 4v16"></path><path d="M8.5 9.5H12"></path><path d="M12 14.5h3.5"></path></svg>`;
+  }
+
+  return `<svg viewBox="0 0 24 24"><path d="M12 3v18"></path><path d="M7 3v7a5 5 0 0 0 10 0V3"></path></svg>`;
+}
+
+function renderSuggestionIcon() {
+  return `<svg viewBox="0 0 24 24"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 3a6 6 0 0 0-3 11.2V16h6v-1.8A6 6 0 0 0 12 3Z"></path></svg>`;
 }
 
 function renderSuggestionCard(suggestion) {
