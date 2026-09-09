@@ -1,4 +1,3 @@
-import cgi
 import hashlib
 import json
 import os
@@ -6,6 +5,8 @@ import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from email.parser import BytesParser
+from email.policy import default as email_policy
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
@@ -648,24 +649,32 @@ def parse_multipart(handler):
     if length <= 0 or length > MAX_UPLOAD_BYTES:
         raise ValueError("Arquivo vazio ou maior que o limite permitido.")
 
-    form = cgi.FieldStorage(
-        fp=handler.rfile,
-        headers=handler.headers,
-        environ={
-            "REQUEST_METHOD": "POST",
-            "CONTENT_TYPE": content_type,
-            "CONTENT_LENGTH": str(length),
-        },
+    body = handler.rfile.read(length)
+    message = BytesParser(policy=email_policy).parsebytes(
+        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
+        + body
     )
-    file_field = form["file"] if "file" in form else None
-    if file_field is None or not getattr(file_field, "filename", ""):
-        raise ValueError("Campo 'file' não encontrado.")
+    if not message.is_multipart():
+        raise ValueError("Corpo multipart inválido.")
 
-    filename = os.path.basename(file_field.filename)
+    filename = ""
+    file_bytes = b""
+    for part in message.iter_parts():
+        params = dict(part.get_params(header="content-disposition", failobj=[]) or [])
+        if params.get("name") != "file":
+            continue
+        filename = os.path.basename(params.get("filename", ""))
+        file_bytes = part.get_payload(decode=True) or b""
+        break
+
+    if not filename:
+        raise ValueError("Campo 'file' não encontrado.")
     if not filename.lower().endswith(".xlsx"):
         raise ValueError("Envie um arquivo .xlsx.")
+    if not file_bytes:
+        raise ValueError("Arquivo vazio.")
 
-    return filename, file_field.file.read()
+    return filename, file_bytes
 
 
 def allowed_origin(origin):
