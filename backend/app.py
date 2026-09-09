@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover - optional outside production
 
 
 PARSER_VERSION = "backend-ai-v1"
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 
@@ -288,7 +288,28 @@ def call_gemini(raw_workbook):
     if not api_key:
         return None
 
-    model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    configured_model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    fallback_models = [DEFAULT_MODEL, "gemini-3.5-flash-lite"]
+    models = []
+    for model_name in [configured_model, *fallback_models]:
+        if model_name not in models:
+            models.append(model_name)
+
+    last_error = None
+    for model in models:
+        try:
+            return call_gemini_model(raw_workbook, api_key, model)
+        except RuntimeError as exc:
+            last_error = exc
+            if "HTTP 404" not in str(exc):
+                raise
+
+    if last_error:
+        raise last_error
+    return None
+
+
+def call_gemini_model(raw_workbook, api_key, model):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     prompt = build_ai_prompt(raw_workbook)
     payload = {

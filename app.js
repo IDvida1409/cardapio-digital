@@ -1359,11 +1359,17 @@ function renderSectionPreview(section) {
 function renderReview(imported, created) {
   importReview.hidden = false;
   const periodLines = imported.periods.map((period) => `${period.sheetName}: ${period.period}.`);
-  const lines = [
+  const lines = imported.serverImport ? [
+    `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")} retornados pelo backend.`,
+    ...periodLines,
+    `Status: ${imported.status || "sem status"}; células úteis: ${imported.validation?.totalUsefulCells || 0}; pendentes: ${imported.validation?.pendingCells || 0}.`
+  ] : [
     `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")} identificados em ${plural(imported.menuSheets.length, "aba", "abas")}.`,
     ...periodLines,
     `${plural(created.preparacoes, "preparação", "preparações")}, ${plural(created.alimentos, "alimento", "alimentos")}, ${plural(created.processos, "processo", "processos")} e ${plural(created.dietas, "dieta", "dietas")} cadastrados como novos.`
-  ].concat(imported.warnings);
+  ];
+
+  lines.push(...(imported.warnings || []));
 
   reviewList.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("");
 }
@@ -1376,7 +1382,7 @@ function renderImportedState(imported, created) {
   validationPill.textContent = "Excel interpretado";
   validationPill.classList.add("selected-file");
   datePickerLabel.textContent = `${plural(imported.days.length, "dia importado", "dias importados")}`;
-  summaryLabel.textContent = "Arquivo lido localmente";
+  summaryLabel.textContent = imported.serverImport ? "Arquivo processado pela IA" : "Arquivo lido localmente";
   summaryTitle.textContent = imported.periodLabel;
   summaryText.textContent = `${plural(imported.days.length, "dia", "dias")} e ${plural(imported.cardapios.length, "refeição", "refeições")}. Períodos: ${imported.periods.map((period) => period.label).join("; ")}.`;
   renderSelectedDay();
@@ -1523,10 +1529,10 @@ excelInput.addEventListener("change", async () => {
     return;
   }
 
-  validationPill.textContent = "Lendo Excel";
-  summaryLabel.textContent = "Processamento local";
+  validationPill.textContent = "Enviando Excel";
+  summaryLabel.textContent = "Processamento com IA";
   summaryTitle.textContent = "Interpretando planilha";
-  summaryText.textContent = "O arquivo está sendo lido no navegador. Nada é enviado para servidor nesta etapa.";
+  summaryText.textContent = "O backend está lendo o Excel, chamando a IA e validando as células antes de gravar.";
   mealGrid.hidden = true;
   mealGrid.innerHTML = "";
 
@@ -1535,7 +1541,9 @@ excelInput.addEventListener("change", async () => {
       ? window.NutriMenuImporter.parseWorkbook
       : parseWorkbook;
     const imported = await parseExcel(file);
-    const created = mergeImportedData(imported);
+    const created = imported.serverImport
+      ? { alimentos: 0, preparacoes: 0, processos: 0, dietas: 0, cardapios: 0 }
+      : mergeImportedData(imported);
     renderImportedState(imported, created);
   } catch (error) {
     renderError(error.message || "Não foi possível interpretar o arquivo selecionado.");
