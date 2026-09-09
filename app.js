@@ -1216,11 +1216,7 @@ function renderMenuBlock(menu) {
 }
 
 function renderDietGroup(group, open, index = 0) {
-  const itemCount = group.itemCount || group.suggestions.reduce((total, suggestion) => total + suggestion.itemCount, 0);
   const commonSections = Array.isArray(group.commonSections) ? group.commonSections : [];
-  const summaryLabel = group.suggestions.length
-    ? plural(group.suggestions.length, "sugestão", "sugestões")
-    : "Itens comuns";
   const toneClass = `tone-${(index % 4) + 1}`;
 
   return `
@@ -1230,14 +1226,10 @@ function renderDietGroup(group, open, index = 0) {
           <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
         </span>
         <span>${escapeHtml(formatMenuText(group.title))}</span>
-        <em>${summaryLabel} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
       <div class="diet-content">
         ${renderCommonSections(commonSections)}
         ${group.suggestions.length ? `
-          <div class="suggestion-heading">
-            <span>Sugestões</span>
-          </div>
           <div class="suggestion-grid">
             ${group.suggestions.map((suggestion) => renderSuggestionCard(suggestion)).join("")}
           </div>
@@ -1254,7 +1246,6 @@ function renderCommonSections(sections) {
     <div class="common-menu">
       ${sections.map((section) => `
         <div class="common-section" title="${escapeHtml(section.title)}">
-          <span class="section-icon" aria-hidden="true">${renderSectionIcon(section.title)}</span>
           <span>${escapeHtml((section.items || []).map(formatMenuText).join(" · "))}</span>
         </div>
       `).join("")}
@@ -1285,45 +1276,15 @@ function formatMenuText(value) {
     .replace(/\s+\|\s+/g, " | ");
 }
 
-function renderSectionIcon(title) {
-  const normalized = normalizeText(title);
-
-  if (normalized.includes("sobremesa")) {
-    return `<svg viewBox="0 0 24 24"><path d="M6 12h12"></path><path d="M8 12v5a4 4 0 0 0 8 0v-5"></path><path d="M9 8h6"></path></svg>`;
-  }
-
-  if (normalized.includes("fruta")) {
-    return `<svg viewBox="0 0 24 24"><path d="M12 8c2.8-2.8 7-1.4 7 3.3C19 15.8 16 20 12 20s-7-4.2-7-8.7C5 6.6 9.2 5.2 12 8Z"></path><path d="M12 8c.2-2 1.2-3.5 3-4.5"></path></svg>`;
-  }
-
-  if (normalized.includes("salada") || normalized.includes("verdura") || normalized.includes("legume")) {
-    return `<svg viewBox="0 0 24 24"><path d="M5 18C6 10 13 6 19 6c0 6-4 12-14 12Z"></path><path d="M7 17c3-3 6-6 12-11"></path></svg>`;
-  }
-
-  if (normalized.includes("grao") || normalized.includes("arroz") || normalized.includes("feijao")) {
-    return `<svg viewBox="0 0 24 24"><path d="M6 12h12"></path><path d="M8 12c.4 4 2 7 4 7s3.6-3 4-7"></path><path d="M9 9c1.8-1 4.2-1 6 0"></path></svg>`;
-  }
-
-  return `<svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 0 0 14 0Z"></path><path d="M8 16h8"></path><path d="M12 5v5"></path></svg>`;
-}
-
-function renderSuggestionIcon() {
-  return `<svg viewBox="0 0 24 24"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 3a6 6 0 0 0-3 11.2V16h6v-1.8A6 6 0 0 0 12 3Z"></path></svg>`;
-}
-
 function renderSuggestionCard(suggestion) {
   const dishes = Array.isArray(suggestion.dishes) ? suggestion.dishes : [];
   const fallbackItems = flattenSuggestionItems(suggestion);
   const items = dishes.length ? dishes.map((dish) => dish.name).filter(Boolean) : fallbackItems;
-  const countLabel = suggestion.itemCount
-    ? plural(suggestion.itemCount, "componente", "componentes")
-    : plural(items.length, "preparação", "preparações");
 
   return `
     <article class="suggestion-card">
       <header class="suggestion-card-header">
         <strong>${escapeHtml(formatMenuText(suggestion.title))}</strong>
-        <span>${escapeHtml(countLabel)}</span>
       </header>
       ${renderSuggestionItems(items)}
     </article>
