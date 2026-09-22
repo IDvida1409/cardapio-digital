@@ -28,9 +28,9 @@ except Exception:  # pragma: no cover - optional outside production
     dict_row = None
 
 
-PARSER_VERSION = "backend-structural-v6"
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
-FALLBACK_MODELS = ("gemini-3.5-flash-lite", "gemini-2.5-flash")
+PARSER_VERSION = "backend-structural-v7"
+DEFAULT_MODEL = "gemini-3.6-flash"
+FALLBACK_MODELS = ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
 RETRYABLE_GEMINI_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 DEFAULT_GEMINI_MAX_ATTEMPTS = 4
 DEFAULT_GEMINI_RETRY_BASE_SECONDS = 1.0
@@ -1073,14 +1073,17 @@ def call_gemini_by_blocks(raw_workbook, api_key, models, blocks):
     def interpret_batch(batch):
         prompt, batch_raw = build_batch_prompt(raw_workbook, batch)
         batch_error = None
+        preferred_error = None
         for model in models:
             try:
                 return batch, call_gemini_model(batch_raw, api_key, model, prompt), model, None
             except GeminiRequestError as exc:
                 batch_error = exc
+                if exc.status_code != 404:
+                    preferred_error = exc
                 if exc.status_code != 404 and not exc.retryable:
                     break
-        return batch, None, None, batch_error
+        return batch, None, None, preferred_error or batch_error
 
     results = []
     with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_AI_BATCHES, len(batches))) as executor:
@@ -1141,16 +1144,19 @@ def call_gemini(raw_workbook):
         return call_gemini_by_blocks(raw_workbook, api_key, models, blocks)
 
     last_error = None
+    preferred_error = None
     for model in models:
         try:
             return call_gemini_model(raw_workbook, api_key, model)
         except GeminiRequestError as exc:
             last_error = exc
+            if exc.status_code != 404:
+                preferred_error = exc
             if exc.status_code != 404 and not exc.retryable:
                 raise
 
-    if last_error:
-        raise last_error
+    if preferred_error or last_error:
+        raise preferred_error or last_error
     return None
 
 
@@ -1189,7 +1195,6 @@ def call_gemini_model(raw_workbook, api_key, model, prompt=None):
             }
         ],
         "generationConfig": {
-            "temperature": 0.1,
             "responseMimeType": "application/json",
         },
     }
@@ -1784,6 +1789,8 @@ class Handler(BaseHTTPRequestHandler):
                     "databaseReady": self.store.ready,
                     "databaseError": self.store.init_error,
                     "geminiConfigured": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+                    "geminiModel": os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip()
+                    or DEFAULT_MODEL,
                 }
             )
             return

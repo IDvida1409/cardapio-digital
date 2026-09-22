@@ -14,7 +14,7 @@ Backend para importar cardápios hospitalares a partir de Excel sem expor chave 
 
 ```env
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.6-flash
 GEMINI_MAX_ATTEMPTS=4
 GEMINI_RETRY_BASE_SECONDS=1
 DATABASE_URL=
