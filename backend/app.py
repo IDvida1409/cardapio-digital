@@ -1,9 +1,11 @@
 import hashlib
 import json
 import os
+import random
 import re
 import sqlite3
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -26,8 +28,13 @@ except Exception:  # pragma: no cover - optional outside production
     dict_row = None
 
 
-PARSER_VERSION = "backend-structural-v5"
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
+PARSER_VERSION = "backend-structural-v6"
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
+FALLBACK_MODELS = ("gemini-3.5-flash-lite", "gemini-2.5-flash")
+RETRYABLE_GEMINI_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+DEFAULT_GEMINI_MAX_ATTEMPTS = 4
+DEFAULT_GEMINI_RETRY_BASE_SECONDS = 1.0
+MAX_GEMINI_RETRY_DELAY_SECONDS = 15.0
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_BLOCKS_PER_IMPORT = 80
 MAX_BLOCKS_PER_AI_BATCH = 6
@@ -75,6 +82,13 @@ MONTH_LABELS = {
     "dez": 12,
     "dezembro": 12,
 }
+
+
+class GeminiRequestError(RuntimeError):
+    def __init__(self, message, status_code=None, retryable=False):
+        super().__init__(message)
+        self.status_code = status_code
+        self.retryable = retryable
 
 
 def now_iso():
@@ -1062,9 +1076,9 @@ def call_gemini_by_blocks(raw_workbook, api_key, models, blocks):
         for model in models:
             try:
                 return batch, call_gemini_model(batch_raw, api_key, model, prompt), model, None
-            except RuntimeError as exc:
+            except GeminiRequestError as exc:
                 batch_error = exc
-                if "HTTP 404" not in str(exc):
+                if exc.status_code != 404 and not exc.retryable:
                     break
         return batch, None, None, batch_error
 
@@ -1117,9 +1131,8 @@ def call_gemini(raw_workbook):
         return None
 
     configured_model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
-    fallback_models = [DEFAULT_MODEL, "gemini-3.5-flash-lite"]
     models = []
-    for model_name in [configured_model, *fallback_models]:
+    for model_name in [configured_model, DEFAULT_MODEL, *FALLBACK_MODELS]:
         if model_name not in models:
             models.append(model_name)
 
@@ -1131,14 +1144,38 @@ def call_gemini(raw_workbook):
     for model in models:
         try:
             return call_gemini_model(raw_workbook, api_key, model)
-        except RuntimeError as exc:
+        except GeminiRequestError as exc:
             last_error = exc
-            if "HTTP 404" not in str(exc):
+            if exc.status_code != 404 and not exc.retryable:
                 raise
 
     if last_error:
         raise last_error
     return None
+
+
+def gemini_retry_settings():
+    try:
+        max_attempts = int(os.environ.get("GEMINI_MAX_ATTEMPTS", DEFAULT_GEMINI_MAX_ATTEMPTS))
+    except (TypeError, ValueError):
+        max_attempts = DEFAULT_GEMINI_MAX_ATTEMPTS
+    try:
+        base_delay = float(
+            os.environ.get("GEMINI_RETRY_BASE_SECONDS", DEFAULT_GEMINI_RETRY_BASE_SECONDS)
+        )
+    except (TypeError, ValueError):
+        base_delay = DEFAULT_GEMINI_RETRY_BASE_SECONDS
+    return max(1, min(max_attempts, 6)), max(0.1, min(base_delay, 10.0))
+
+
+def gemini_retry_delay(attempt, base_delay, retry_after=None):
+    if retry_after:
+        try:
+            return min(max(float(retry_after), 0.1), MAX_GEMINI_RETRY_DELAY_SECONDS)
+        except (TypeError, ValueError):
+            pass
+    exponential_delay = min(base_delay * (2 ** attempt), MAX_GEMINI_RETRY_DELAY_SECONDS)
+    return exponential_delay + random.uniform(0, min(base_delay, 1.0))
 
 
 def call_gemini_model(raw_workbook, api_key, model, prompt=None):
@@ -1157,20 +1194,38 @@ def call_gemini_model(raw_workbook, api_key, model, prompt=None):
         },
     }
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib_request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib_request.urlopen(req, timeout=90) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Gemini HTTP {exc.code}: {detail}") from exc
-    except URLError as exc:
-        raise RuntimeError(f"Erro de conexão com Gemini: {exc.reason}") from exc
+    max_attempts, base_delay = gemini_retry_settings()
+    for attempt in range(max_attempts):
+        req = urllib_request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib_request.urlopen(req, timeout=90) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            break
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            retryable = exc.code in RETRYABLE_GEMINI_STATUS_CODES
+            error = GeminiRequestError(
+                f"Gemini HTTP {exc.code}: {detail}",
+                status_code=exc.code,
+                retryable=retryable,
+            )
+            if not retryable or attempt + 1 >= max_attempts:
+                raise error from exc
+            delay = gemini_retry_delay(attempt, base_delay, exc.headers.get("Retry-After"))
+            time.sleep(delay)
+        except URLError as exc:
+            error = GeminiRequestError(
+                f"Erro de conexão com Gemini: {exc.reason}",
+                retryable=True,
+            )
+            if attempt + 1 >= max_attempts:
+                raise error from exc
+            time.sleep(gemini_retry_delay(attempt, base_delay))
 
     text = body["candidates"][0]["content"]["parts"][0]["text"]
     result = json.loads(text)

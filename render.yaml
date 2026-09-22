@@ -24,7 +24,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.5-flash-lite
+        value: gemini-2.5-flash-lite
+      - key: GEMINI_MAX_ATTEMPTS
+        value: 4
+      - key: GEMINI_RETRY_BASE_SECONDS
+        value: 1
       - key: DATABASE_URL
         sync: false
       - key: ALLOWED_ORIGINS

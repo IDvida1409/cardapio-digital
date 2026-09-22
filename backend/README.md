@@ -15,12 +15,18 @@ Backend para importar cardápios hospitalares a partir de Excel sem expor chave 
 ```env
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MAX_ATTEMPTS=4
+GEMINI_RETRY_BASE_SECONDS=1
 DATABASE_URL=
 SQLITE_PATH=./nutrimenu.db
 ALLOWED_ORIGINS=https://nutrimenu-cardapio-digital.onrender.com
 ```
 
 Sem `DATABASE_URL`, o backend usa SQLite local. No Render, use Postgres.
+
+Falhas temporárias do Gemini (`408`, `429` e `5xx`) são repetidas com espera
+progressiva. Se um modelo continuar indisponível, o backend tenta os modelos
+alternativos configurados no código.
 
 ## Rodar local
 
