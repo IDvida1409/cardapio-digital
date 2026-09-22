@@ -328,7 +328,20 @@
     const normalized = core.normalizeText(text);
     return normalized.startsWith("opcoes de escolha")
       || normalized.startsWith("opcao de escolha")
-      || normalized.startsWith("producao diaria");
+      || normalized.startsWith("producao diaria")
+      || /^horario\s*:/.test(normalized);
+  }
+
+  function detectColumnGroup(text) {
+    const normalized = core.normalizeText(text);
+    const groups = [
+      ["coccao", "Cocção"],
+      ["distribuicao", "Distribuição"],
+      ["producao", "Produção"],
+      ["preparo", "Preparo"]
+    ];
+    const match = groups.find(([term]) => normalized === term);
+    return match ? match[1] : "";
   }
 
   function expandPrefixedItems(prefixed) {
@@ -670,6 +683,12 @@
       ranges.forEach((cell) => {
         if (isOperationalNote(cell.text)) return;
 
+        const columnGroup = detectColumnGroup(cell.text);
+        if (columnGroup) {
+          applyColumnRange(groupByColumn, cell.startCol, cell.endCol, createColumnContext(columnGroup, cell.startCol, cell.endCol));
+          return;
+        }
+
         core.splitCellSegments(cell.text).forEach((segment) => {
           const normalized = core.normalizeText(segment);
           const suggestion = detectSuggestion(normalized);
@@ -688,6 +707,7 @@
 
       ranges.forEach((cell) => {
         if (isOperationalNote(cell.text)) return;
+        if (detectColumnGroup(cell.text)) return;
 
         const groupContext = getColumnContext(groupByColumn, cell.colNumber, "Cardápio geral", cell.startCol, cell.endCol);
         const suggestionContext = getColumnContext(suggestionByColumn, cell.colNumber, "Itens gerais", cell.startCol, cell.endCol);
@@ -795,7 +815,12 @@
         candidate.rowNumber > header.rowNumber
         && rangesOverlap(header.startCol, header.endCol, candidate.startCol, candidate.endCol)
       ));
-      const blockRows = rows
+      const columnGroupRows = rows.filter((row) => (
+        row.number >= Math.max(1, header.rowNumber - 3)
+        && row.number < header.rowNumber
+        && row.cells.some((cell) => detectColumnGroup(cell.text))
+      ));
+      const contentRows = rows
         .filter((row) => row.number >= header.contentStartRow && (!nextHeader || row.number < nextHeader.rowNumber))
         .map((row) => ({
           ...row,
@@ -807,6 +832,8 @@
           ))
         }))
         .filter((row) => row.cells.length);
+      const blockRows = [...columnGroupRows, ...contentRows]
+        .sort((left, right) => left.number - right.number);
       const menu = parseMenuBlock(header, blockRows, sheet.name, imported);
       imported.cardapios.push(menu);
     });

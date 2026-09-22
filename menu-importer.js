@@ -253,8 +253,8 @@
       localError = error;
     }
 
-    const forceBackend = window.NUTRIMENU_USE_BACKEND_IMPORTER === true;
-    if (!forceBackend && hasUsableMenus(localImport)) {
+    const preferBackend = window.NUTRIMENU_USE_BACKEND_IMPORTER !== false;
+    if (!preferBackend && hasUsableMenus(localImport)) {
       localImport.warnings.unshift("Planilha interpretada pelo parser estrutural local, sem depender de IA.");
       return localImport;
     }
@@ -288,6 +288,6 @@
     parseWorkbookWithBackend,
     pollBackendImport,
     loadLatestImport,
-    version: "local-first-v1"
+    version: "ai-first-v2"
   };
 })(window);

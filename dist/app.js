@@ -1366,7 +1366,7 @@ function renderMenuBlock(menu) {
         <em>${plural(groups.length, "tipo", "tipos")} · ${plural(itemCount, "item", "itens")}</em>
       </summary>
       <div class="menu-group-stack">
-        ${groups.map((group, index) => renderDietGroup(group, false, index)).join("")}
+        ${groups.map((group, index) => renderDietGroup(group, true, index)).join("")}
       </div>
     </details>
   `;
