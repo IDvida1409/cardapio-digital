@@ -217,15 +217,13 @@
     return adaptAiImport({ name: payload.summary?.fileName || "Última importação" }, payload);
   }
 
-  async function parseWorkbook(file) {
-    if (window.NUTRIMENU_USE_LOCAL_IMPORTER !== true) {
-      return parseWorkbookWithBackend(file);
-    }
-
+  async function parseWorkbookLocally(file) {
     const rawWorkbook = await window.NutriMenuExcelReader.readWorkbook(file);
     const imported = window.NutriMenuParser.parseWorkbookData(rawWorkbook);
     const validation = window.NutriMenuValidator.validateImportedMenu(imported);
 
+    imported.source = "local-structural";
+    imported.serverImport = false;
     imported.validation = validation;
     imported.warnings = [
       ...(imported.warnings || []),
@@ -236,11 +234,60 @@
     return imported;
   }
 
+  function hasUsableMenus(imported) {
+    return Boolean(
+      imported
+      && imported.days?.length
+      && imported.cardapios?.some((menu) => Number(menu.itemCount || 0) > 0)
+      && imported.validation?.status !== "error"
+    );
+  }
+
+  async function parseWorkbook(file) {
+    let localImport = null;
+    let localError = null;
+
+    try {
+      localImport = await parseWorkbookLocally(file);
+    } catch (error) {
+      localError = error;
+    }
+
+    const forceBackend = window.NUTRIMENU_USE_BACKEND_IMPORTER === true;
+    if (!forceBackend && hasUsableMenus(localImport)) {
+      localImport.warnings.unshift("Planilha interpretada pelo parser estrutural local, sem depender de IA.");
+      return localImport;
+    }
+
+    if (window.NUTRIMENU_USE_LOCAL_IMPORTER === true) {
+      if (localImport) return localImport;
+      throw localError || new Error("O parser estrutural local não conseguiu ler a planilha.");
+    }
+
+    try {
+      const backendImport = await parseWorkbookWithBackend(file);
+      if (backendImport.days.length && backendImport.cardapios.length) return backendImport;
+      if (hasUsableMenus(localImport)) {
+        localImport.warnings.unshift("O backend não retornou dias; foi usada a leitura estrutural local.");
+        return localImport;
+      }
+      throw new Error("Nenhum dia ou refeição foi reconhecido pelo backend.");
+    } catch (backendError) {
+      if (hasUsableMenus(localImport)) {
+        localImport.warnings.unshift("O serviço de IA estava indisponível; foi usada a leitura estrutural local.");
+        return localImport;
+      }
+      const localMessage = localError?.message || localImport?.validation?.errors?.[0] || "nenhum bloco estrutural reconhecido";
+      throw new Error(`${localMessage}. Backend: ${backendError.message || "indisponível"}`);
+    }
+  }
+
   window.NutriMenuImporter = {
     parseWorkbook,
+    parseWorkbookLocally,
     parseWorkbookWithBackend,
     pollBackendImport,
     loadLatestImport,
-    version: "backend-structural-v2"
+    version: "local-first-v1"
   };
 })(window);

@@ -220,26 +220,89 @@
     return (year * 10000) + (parts.month * 100) + parts.day;
   }
 
-  function parseHeader(row) {
-    const normalized = core.normalizeText(row.text);
-    if (!normalized.includes("cardapio")) return null;
+  function rangesOverlap(leftStart, leftEnd, rightStart, rightEnd) {
+    return leftStart <= rightEnd && rightStart <= leftEnd;
+  }
 
+  function parseHeader(row, columnRange = {}) {
+    const normalized = core.normalizeText(row.text);
     const meal = detectMeal(normalized);
     if (!meal) return null;
 
-    const cardMatch = normalized.match(/cardapio\s*(\d+)/);
     const dateParts = parseDateParts(row.text);
+    const dayName = detectDayName(normalized);
+    const hasMenuLabel = /\b(cardapio|menu)\b/.test(normalized);
+    if (!hasMenuLabel && !dateParts && !dayName) return null;
+
+    const cardMatch = normalized.match(/(?:cardapio|menu)\s*(\d+)/);
 
     return {
       rowNumber: row.number,
+      contentStartRow: columnRange.contentStartRow || row.number + 1,
+      startCol: columnRange.startCol || 1,
+      endCol: columnRange.endCol || Number.MAX_SAFE_INTEGER,
       cardNumber: cardMatch ? Number(cardMatch[1]) : null,
       mealKey: meal.key,
       mealTitle: meal.title,
       dateParts,
       date: formatDateParts(dateParts, Boolean(dateParts && dateParts.year)),
-      dayName: detectDayName(normalized),
+      dayName,
       raw: row.text
     };
+  }
+
+  function detectWorksheetHeaders(sheet) {
+    const rows = sheet.rows || [];
+    const allCells = rows.flatMap((row) => row.cells || []);
+    const maxColumn = Math.max(
+      Number(sheet.columnCount) || 1,
+      ...allCells.map((cell) => cell.endCol || cell.colNumber || 1)
+    );
+    const contextualHeaders = [];
+
+    rows.forEach((row) => {
+      const anchors = (row.cells || []).filter((cell) => (
+        /\b(cardapio|menu)\b/.test(core.normalizeText(cell.text))
+      ));
+
+      anchors.forEach((anchor, anchorIndex) => {
+        const nextAnchor = anchors[anchorIndex + 1];
+        const startCol = anchor.startCol || anchor.colNumber || 1;
+        const endCol = nextAnchor
+          ? Math.max(startCol, (nextAnchor.startCol || nextAnchor.colNumber) - 1)
+          : maxColumn;
+        let header = null;
+        for (let contextEndRow = row.number; contextEndRow <= row.number + 2 && !header; contextEndRow += 1) {
+          const contextCells = rows
+            .filter((candidate) => candidate.number >= row.number && candidate.number <= contextEndRow)
+            .flatMap((candidate) => candidate.cells || [])
+            .filter((cell) => rangesOverlap(
+              startCol,
+              endCol,
+              cell.startCol || cell.colNumber,
+              cell.endCol || cell.colNumber
+            ));
+          const contextText = contextCells.map((cell) => cell.text).join(" | ");
+          header = parseHeader(
+            { number: row.number, text: contextText },
+            { startCol, endCol, contentStartRow: contextEndRow + 1 }
+          );
+        }
+        if (header) contextualHeaders.push(header);
+      });
+    });
+
+    const directHeaders = rows.map((row) => parseHeader(
+      row,
+      { startCol: 1, endCol: maxColumn, contentStartRow: row.number + 1 }
+    )).filter(Boolean).filter((header) => !contextualHeaders.some((contextual) => (
+      header.rowNumber >= contextual.rowNumber
+      && header.rowNumber < contextual.contentStartRow
+      && rangesOverlap(header.startCol, header.endCol, contextual.startCol, contextual.endCol)
+    )));
+
+    return [...contextualHeaders, ...directHeaders]
+      .sort((left, right) => left.rowNumber - right.rowNumber || left.startCol - right.startCol);
   }
 
   function detectSuggestion(normalizedText) {
@@ -706,7 +769,7 @@
   function parseWorksheet(sheet, imported) {
     const rows = sheet.rows;
     const sheetPeriod = parseSheetPeriod(sheet.name);
-    const headers = rows.map(parseHeader).filter(Boolean).map((header) => {
+    const headers = detectWorksheetHeaders(sheet).map((header) => {
       const inferredDate = header.dateParts || inferDateFromSheet(header, sheetPeriod);
       const dateParts = inferredDate && sheetPeriod.year && !inferredDate.year && inferredDate.month === sheetPeriod.month
         ? { ...inferredDate, year: sheetPeriod.year }
@@ -727,9 +790,23 @@
 
     imported.menuSheets.push(sheet.name);
 
-    headers.forEach((header, index) => {
-      const nextHeader = headers[index + 1];
-      const blockRows = rows.filter((row) => row.number > header.rowNumber && (!nextHeader || row.number < nextHeader.rowNumber));
+    headers.forEach((header) => {
+      const nextHeader = headers.find((candidate) => (
+        candidate.rowNumber > header.rowNumber
+        && rangesOverlap(header.startCol, header.endCol, candidate.startCol, candidate.endCol)
+      ));
+      const blockRows = rows
+        .filter((row) => row.number >= header.contentStartRow && (!nextHeader || row.number < nextHeader.rowNumber))
+        .map((row) => ({
+          ...row,
+          cells: row.cells.filter((cell) => rangesOverlap(
+            header.startCol,
+            header.endCol,
+            cell.startCol || cell.colNumber,
+            cell.endCol || cell.colNumber
+          ))
+        }))
+        .filter((row) => row.cells.length);
       const menu = parseMenuBlock(header, blockRows, sheet.name, imported);
       imported.cardapios.push(menu);
     });
@@ -817,6 +894,7 @@
 
   window.NutriMenuParser = {
     parseWorkbookData,
-    parseMenuBlock
+    parseMenuBlock,
+    detectWorksheetHeaders
   };
 })(window);
